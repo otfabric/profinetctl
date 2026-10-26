@@ -12,7 +12,9 @@ We will acknowledge your report within 48 hours and aim to provide a fix or miti
 
 ## Supported Versions
 
-profinetctl has not been released yet; the `main` branch is supported.
+| Version | Supported |
+|---------|-----------|
+| 0.1.x | Yes |
 
 ## Security Considerations
 

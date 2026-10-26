@@ -6,6 +6,17 @@ Releases are cut by the **Release** workflow (`.github/workflows/release.yml`, t
 
 profinetctl requires a released go-profinet version (go.mod). When a release needs a newer go-profinet, release go-profinet first, then `GOWORK=off go get github.com/otfabric/go-profinet@vX.Y.Z && GOWORK=off go mod tidy`.
 
+## v0.1.0 (2026-10-26)
+
+First version, built on go-profinet v0.1.1.
+
+- DCP discovery and commissioning: `discover`, `identify`, `name get/set`, `ip get/set`, `signal`, `reset`.
+- Records and identification: `record read/write`, `im read/write`, `diagnostics`, `device info`, `status`.
+- Topology: `lldp neighbors`, `topology` (PDRealData of every device).
+- GSDML: `gsdml inspect`, `validate`, `modules`, `submodules`, `generate`.
+- IO-Controller from a GSDML file or a go-profinet model: `connect`, `ar`, `iocr`, `io status/monitor/statistics`, `alarms`, `disconnect`.
+- Text, table and JSON output with stable exit codes ([docs/exitcodes.md](docs/exitcodes.md), [docs/json-output.md](docs/json-output.md)); verified against rt-labs p-net ([docs/EXAMPLES.md](docs/EXAMPLES.md)).
+
 ## Checklist
 
 - `make check` passes locally; CI is green.
