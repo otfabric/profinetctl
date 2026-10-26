@@ -155,11 +155,27 @@ type topoPort struct {
 	Subslot uint16 `json:"subslot"`
 	PortID  string `json:"port_id"`
 	Link    string `json:"link"`
-	// PeerStation and PeerPort name the neighbor as its LLDP reports it.
-	PeerStation string `json:"peer_station,omitempty"`
-	PeerPort    string `json:"peer_port,omitempty"`
-	PeerMAC     string `json:"peer_mac,omitempty"`
-	LineDelay   uint32 `json:"line_delay,omitempty"`
+	// Peers are the neighbors the port reports: one behind a switch, more
+	// on a shared segment.
+	Peers []topoPeer `json:"peers"`
+}
+
+// topoPeer is a neighbor of a port, as its LLDP reports it.
+type topoPeer struct {
+	Station   string `json:"station"`
+	Port      string `json:"port"`
+	MAC       string `json:"mac"`
+	LineDelay uint32 `json:"line_delay,omitempty"`
+}
+
+func (p topoPeer) String() string { return strings.TrimSpace(p.Station + " " + p.Port) }
+
+func peersString(ps []topoPeer) string {
+	var s []string
+	for _, p := range ps {
+		s = append(s, p.String())
+	}
+	return orDash(strings.Join(s, ", "))
 }
 
 // topoLink is a cable between two ports.
@@ -197,11 +213,7 @@ func (r topologyResult) MarshalTextOutput() (string, error) {
 			fmt.Fprintf(&b, "  error: %s\n", n.Error)
 		}
 		for _, p := range n.Ports {
-			peer := "-"
-			if p.PeerStation != "" || p.PeerPort != "" {
-				peer = strings.TrimSpace(p.PeerStation + " " + p.PeerPort)
-			}
-			fmt.Fprintf(&b, "  %-10s link %-5s ── %s\n", p.PortID, p.Link, peer)
+			fmt.Fprintf(&b, "  %-10s link %-5s ── %s\n", p.PortID, p.Link, peersString(p.Peers))
 		}
 	}
 	if len(r.Links) > 0 {
@@ -214,32 +226,30 @@ func (r topologyResult) MarshalTextOutput() (string, error) {
 }
 
 func (r topologyResult) TableHeaders() []string {
-	return []string{"STATION", "PORT", "LINK", "PEER", "PEER PORT"}
+	return []string{"STATION", "PORT", "LINK", "PEERS"}
 }
 
 func (r topologyResult) TableRows() [][]string {
 	var rows [][]string
 	for _, n := range r.Nodes {
 		for _, p := range n.Ports {
-			rows = append(rows, []string{orDash(n.Station), p.PortID, p.Link, orDash(p.PeerStation), orDash(p.PeerPort)})
+			rows = append(rows, []string{orDash(n.Station), p.PortID, p.Link, peersString(p.Peers)})
 		}
 		if len(n.Ports) == 0 {
-			rows = append(rows, []string{orDash(n.Station), "-", "-", "-", orDash(n.Error)})
+			rows = append(rows, []string{orDash(n.Station), "-", "-", orDash(n.Error)})
 		}
 	}
 	return rows
 }
 
-// peerStation returns the station name of a peer: PROFINET devices put it in
-// their chassis ID, and in their port ID after the port name.
+// peerStation returns the station name of a peer. PROFINET devices put it in
+// their port ID after the port name ("port-001.io-1"); the chassis ID is the
+// station name for some and the system description for others (p-net).
 func peerStation(p pnio.PDPortPeer) string {
-	if p.ChassisID != "" {
-		return p.ChassisID
-	}
 	if i := strings.IndexByte(p.PortID, '.'); i >= 0 {
 		return p.PortID[i+1:]
 	}
-	return ""
+	return p.ChassisID
 }
 
 func peerPort(p pnio.PDPortPeer) string {
@@ -255,19 +265,23 @@ func links(nodes []topoNode) []topoLink {
 	out := []topoLink{}
 	for _, n := range nodes {
 		for _, p := range n.Ports {
-			if p.PeerStation == "" {
-				continue
+			for _, peer := range p.Peers {
+				// A device that lists itself (its own LLDP reflected back to
+				// it) is not a cable.
+				if peer.Station == "" || peer.Station == n.Station {
+					continue
+				}
+				a, b := n.Station+" "+p.PortID, peer.Station+" "+peer.Port
+				key := a + "|" + b
+				if a > b {
+					key = b + "|" + a
+				}
+				if seen[key] {
+					continue
+				}
+				seen[key] = true
+				out = append(out, topoLink{A: n.Station, APort: p.PortID, B: peer.Station, BPort: peer.Port})
 			}
-			a, b := n.Station+" "+p.PortID, p.PeerStation+" "+p.PeerPort
-			key := a + "|" + b
-			if a > b {
-				key = b + "|" + a
-			}
-			if seen[key] {
-				continue
-			}
-			seen[key] = true
-			out = append(out, topoLink{A: n.Station, APort: p.PortID, B: p.PeerStation, BPort: p.PeerPort})
 		}
 	}
 	return out
@@ -338,10 +352,9 @@ without an IP address cannot be read. Exit code 7 when some could not be read.`,
 							n.Error = "PDRealData: " + errorOf(err)
 						}
 						for _, p := range ports {
-							tp := topoPort{Subslot: p.Subslot, PortID: p.OwnPortID, Link: linkName(p.LinkState)}
-							if len(p.Peers) > 0 {
-								peer := p.Peers[0]
-								tp.PeerStation, tp.PeerPort, tp.PeerMAC, tp.LineDelay = peerStation(peer), peerPort(peer), peer.MAC.String(), peer.LineDelay
+							tp := topoPort{Subslot: p.Subslot, PortID: p.OwnPortID, Link: linkName(p.LinkState), Peers: []topoPeer{}}
+							for _, peer := range p.Peers {
+								tp.Peers = append(tp.Peers, topoPeer{Station: peerStation(peer), Port: peerPort(peer), MAC: peer.MAC.String(), LineDelay: peer.LineDelay})
 							}
 							n.Ports = append(n.Ports, tp)
 						}

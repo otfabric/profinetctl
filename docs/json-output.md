@@ -30,7 +30,7 @@ These conventions are a **stable contract** for scripting. Field names are snake
 | `device info` | `{"device", "im0", "modules": [{"api", "slot", "ident_number", "submodules": [{"subslot", "ident_number"}]}], "errors"}` |
 | `status` | `{"device", "dcp", "rpc", "diagnoses": {"fault": n, ...}, "ports": [{"subslot", "port_id", "link", "peer"}], "errors"}` |
 | `lldp neighbors` | `{"interface", "neighbors": [{"mac", "chassis_id", "port_id", "ttl", "system_name", "system_description", "port_description", "management_address", "chassis_mac", "alias", "line_delay"}]}` |
-| `topology` | `{"host_neighbors", "devices": [{"station", "mac", "ip", "ports": [{"subslot", "port_id", "link", "peer_station", "peer_port", "peer_mac", "line_delay"}], "error"}], "links": [{"a", "a_port", "b", "b_port"}]}` |
+| `topology` | `{"host_neighbors", "devices": [{"station", "mac", "ip", "ports": [{"subslot", "port_id", "link", "peers": [{"station", "port", "mac", "line_delay"}]}], "error"}], "links": [{"a", "a_port", "b", "b_port"}]}` |
 | `gsdml inspect` | `{"file", "schema_version", "vendor_id", "device_id", "vendor_name", "family", "device_access_points": [...], "valid", "issues"}` |
 | `gsdml validate` | `{"file", "valid", "issues": [{"path", "message"}], "scope"}` |
 | `gsdml modules`, `gsdml submodules` | `{"dap", "modules": [...]}`, `{"dap", "submodules": [...]}` |

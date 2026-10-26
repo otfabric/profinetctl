@@ -268,7 +268,6 @@ func TestLLDPAndTopology(t *testing.T) {
 	if code != 7 {
 		t.Fatalf("topology exit %d:\n%s", code, out)
 	}
-	n.t.Log(out)
 	decode(t, out, &tr)
 	if len(tr.Nodes) != 3 || len(tr.Host) != 3 {
 		t.Fatalf("topology %+v", tr)
@@ -277,7 +276,7 @@ func TestLLDPAndTopology(t *testing.T) {
 	for _, nd := range tr.Nodes {
 		byName[nd.Station] = nd
 	}
-	if !strings.Contains(byName["dev-c"].Error, "no IP address") || len(byName["dev-a"].Ports) != 1 || byName["dev-a"].Ports[0].PeerStation == "" {
+	if !strings.Contains(byName["dev-c"].Error, "no IP address") || len(byName["dev-a"].Ports) != 1 || len(byName["dev-a"].Ports[0].Peers) != 2 || byName["dev-a"].Ports[0].Peers[0].Station == "" {
 		t.Fatalf("nodes %+v", tr.Nodes)
 	}
 	if len(tr.Links) == 0 {
@@ -287,15 +286,17 @@ func TestLLDPAndTopology(t *testing.T) {
 	if !strings.Contains(out, "dev-a (") || !strings.Contains(out, "Links:") || !strings.Contains(out, "error: no IP address") {
 		t.Fatalf("text:\n%s", out)
 	}
-	if out, _, _ := n.run("-i", "pn0", "topology", "--wait", "300ms", "-o", "table"); !strings.Contains(out, "PEER PORT") {
+	if out, _, _ := n.run("-i", "pn0", "topology", "--wait", "300ms", "-o", "table"); !strings.Contains(out, "PEERS") {
 		t.Fatalf("table:\n%s", out)
 	}
 	// Peer names.
 	if peerStation(pnio.PDPortPeer{PortID: "port-002.sw-1"}) != "sw-1" || peerPort(pnio.PDPortPeer{PortID: "port-002.sw-1"}) != "port-002" ||
-		peerStation(pnio.PDPortPeer{PortID: "eth3"}) != "" || peerPort(pnio.PDPortPeer{PortID: "eth3"}) != "eth3" {
+		peerStation(pnio.PDPortPeer{PortID: "eth3"}) != "" || peerPort(pnio.PDPortPeer{PortID: "eth3"}) != "eth3" ||
+		peerStation(pnio.PDPortPeer{PortID: "eth3", ChassisID: "switch-7"}) != "switch-7" ||
+		peerStation(pnio.PDPortPeer{PortID: "port-001.io-1", ChassisID: "a system description"}) != "io-1" {
 		t.Error("peer names")
 	}
-	if l := links([]topoNode{{Station: "a", Ports: []topoPort{{PortID: "p1", PeerStation: "b", PeerPort: "p2"}}}, {Station: "b", Ports: []topoPort{{PortID: "p2", PeerStation: "a", PeerPort: "p1"}, {PortID: "p3"}}}}); len(l) != 1 {
+	if l := links([]topoNode{{Station: "a", Ports: []topoPort{{PortID: "p1", Peers: []topoPeer{{Station: "b", Port: "p2"}}}}}, {Station: "b", Ports: []topoPort{{PortID: "p2", Peers: []topoPeer{{Station: "a", Port: "p1"}, {Port: "x"}, {Station: "b", Port: "p2"}}}, {PortID: "p3"}}}}); len(l) != 1 {
 		t.Fatalf("links %+v", l)
 	}
 }

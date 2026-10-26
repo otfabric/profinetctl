@@ -266,7 +266,11 @@ severity and report the link and neighbor of its ports (PDRealData). Exit code
 					for _, p := range ports {
 						ps := portStatus{Subslot: p.Subslot, PortID: p.OwnPortID, Link: linkName(p.LinkState)}
 						if len(p.Peers) > 0 {
-							ps.Peer = p.Peers[0].ChassisID + " " + p.Peers[0].PortID
+							var peers []string
+							for _, peer := range p.Peers {
+								peers = append(peers, peerStation(peer)+" "+peerPort(peer))
+							}
+							ps.Peer = strings.Join(peers, ", ")
 						}
 						r.Ports = append(r.Ports, ps)
 					}

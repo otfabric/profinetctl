@@ -10,7 +10,7 @@ It is built for commissioning, troubleshooting and test benches. Output is text,
 
 > **Responsible use:** profinetctl sends real PROFINET frames. Only use it on devices and networks you own or are authorized to work on. `name set`, `ip set`, `reset`, `record write`, `im write` and `connect --output` change devices or what they drive; `reset` erases configuration and needs `--confirm`. See [SECURITY.md](SECURITY.md).
 
-**Quick links:** [Quick start](#quick-start) · [Commands](#commands) · [Privileges](#privileges) · [Connecting as IO-Controller](#connecting-as-io-controller) · [Output](#output) · [Limitations](#limitations)
+**Quick links:** [Examples with real output](docs/EXAMPLES.md) · [Quick start](#quick-start) · [Commands](#commands) · [Privileges](#privileges) · [Connecting as IO-Controller](#connecting-as-io-controller) · [Output](#output) · [Limitations](#limitations)
 
 ---
 
@@ -171,6 +171,7 @@ Details in [docs/exitcodes.md](docs/exitcodes.md).
 ## Limitations
 
 - IO-Controller of conformance class A/B: RT_CLASS_1 and RT_CLASS_2 (advanced startup); no IRT (RT_CLASS_3), no MRP, no shared devices, no system redundancy, no PROFIsafe.
+- OT Fabric is not a PROFIBUS & PROFINET International member: no official XSD validation, no GSDX or MRCD, no certification. The full impact is in go-profinet's [docs/PI-MEMBERSHIP.md](https://github.com/otfabric/go-profinet/blob/main/docs/PI-MEMBERSHIP.md).
 - `gsdml validate` checks go-profinet's catalog of the GSDML schema (structure, types, references), not the official schemas, which PROFIBUS & PROFINET International licenses to its members: it is not PI's GSDML checker.
 - `disconnect` cannot release an AR at devices that tie it to the RPC activity of its Connect (p-net); they close it after the CM activity timeout.
 - `topology` reads devices that have an IP address; switches without PROFINET (no DCP) appear only as neighbors.
