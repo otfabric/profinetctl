@@ -134,7 +134,7 @@ $ sudo profinetctl -i eth0 connect -s io-rack-1 --gsdml device.xml --plug 3=0x30
 01:12:54.161 summary: state Running, 1 connect(s), 0 abort(s), 1 alarm(s), 2500 frames sent, 2500 received, 0 watchdog expiries
 ```
 
-- The cycle is `--send-clock` (units of 31.25 µs, 32 = 1 ms) × `--reduction-ratio` (default 4 ms); `--watchdog-factor` and `--data-hold-factor` are in cycles (default 3).
+- The cycle is `--send-clock` (units of 31.25 µs, 32 = 1 ms) × `--reduction-ratio` (default 4 ms); `--watchdog-factor` and `--data-hold-factor` are in cycles (default 10: a general-purpose OS stalls for 10–20 ms now and then, which the 3 cycles PLCs use do not absorb).
 - Outputs not given with `--output SLOT:SUBSLOT:HEX` are sent as zeros with IOPS *bad*, so that the device keeps them in their safe state.
 - When the device's real configuration differs, the AR still runs (PROFINET reports the difference in the ModuleDiffBlock): profinetctl warns on stderr and streams a `module-diff` event.
 - The controller re-establishes the AR after a failure; `connect` streams every state change. Ctrl-C ends it normally: the AR is released and the summary written.

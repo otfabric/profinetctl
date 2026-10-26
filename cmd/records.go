@@ -235,7 +235,7 @@ func (a *app) openWriter(ctx context.Context, t *target, w *writeVia) (*recordWr
 	}
 	if w.iocar() {
 		o := &arOptions{station: t.station, gsdml: w.gsdml, dap: w.dap, modelFile: w.model, sendClock: 32, reductionRatio: 8,
-			watchdog: max(defaultWatchdog, 10), dataHold: max(defaultDataHold, 10), connectTimeout: 20 * time.Second, rpcPort: rpc.Port,
+			watchdog: defaultWatchdog, dataHold: defaultDataHold, connectTimeout: 20 * time.Second, rpcPort: rpc.Port,
 			controllerName: "profinetctl", activityTimeout: 10 * time.Second}
 		p, err := o.parse()
 		if err != nil {

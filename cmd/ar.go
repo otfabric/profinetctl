@@ -47,9 +47,11 @@ type arOptions struct {
 	activityTimeout time.Duration
 }
 
-// The default watchdog and data hold factors, in cycles: 3, as controllers
-// use. The tests, which run under the race detector, raise them.
-var defaultWatchdog, defaultDataHold uint16 = 3, 3
+// The default watchdog and data hold factors, in cycles: 10, go-profinet's
+// default. PLCs use 3, which a general-purpose OS does not hold reliably
+// (go-profinet's docs/CYCLIC.md). The tests, under the race detector, raise
+// them further.
+var defaultWatchdog, defaultDataHold uint16 = 10, 10
 
 func addAROptions(c *cobra.Command, o *arOptions) {
 	f := c.Flags()
