@@ -6,6 +6,13 @@ Releases are cut by the **Release** workflow (`.github/workflows/release.yml`, t
 
 profinetctl requires a released go-profinet version (go.mod). When a release needs a newer go-profinet, release go-profinet first, then `GOWORK=off go get github.com/otfabric/go-profinet@vX.Y.Z && GOWORK=off go mod tidy`.
 
+## v0.1.1 (2026-10-26)
+
+Built on go-profinet v0.1.2: AR state changes of a device in order, RPC
+responses of many fragments no longer time out on a loaded host, BPF ports
+return `ErrClosed` after Close. No change to commands, output or exit
+codes.
+
 ## v0.1.0 (2026-10-26)
 
 First version, built on go-profinet v0.1.1.
