@@ -1,0 +1,17 @@
+module github.com/otfabric/profinetctl
+
+go 1.25.0
+
+require (
+	github.com/otfabric/go-profinet v0.0.0
+	github.com/spf13/cobra v1.10.2
+)
+
+require (
+	github.com/inconshreveable/mousetrap v1.1.0 // indirect
+	github.com/spf13/pflag v1.0.9 // indirect
+)
+
+// go-profinet has no release yet: build against the sibling checkout. Drop
+// this replace and require the first tag once go-profinet is released.
+replace github.com/otfabric/go-profinet => ../go-profinet

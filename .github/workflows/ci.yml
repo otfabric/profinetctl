@@ -1,0 +1,58 @@
+name: CI
+run-name: "CI (${{ github.event_name }}) on ${{ github.ref_name }} by @${{ github.actor }}"
+
+on:
+  push:
+    branches: ["**"]
+  pull_request:
+    branches: ["**"]
+
+permissions:
+  contents: read
+
+# go-profinet has no release yet: go.mod replaces it with ../go-profinet, so
+# this workflow checks out both repositories side by side. Once go-profinet
+# is tagged, go.mod requires the tag, the replace goes, and this job becomes
+# the shared otfabric/.github go-ci.yml@v2 workflow, as in dnp3ctl.
+jobs:
+  ci:
+    name: Test, lint, coverage (Go ${{ matrix.go }})
+    runs-on: ubuntu-latest
+    strategy:
+      fail-fast: false
+      matrix:
+        go: ["1.25", "1.26"]
+    env:
+      GOWORK: "off"
+    steps:
+      - uses: actions/checkout@v7
+        with:
+          path: profinetctl
+      - uses: actions/checkout@v7
+        with:
+          repository: otfabric/go-profinet
+          path: go-profinet
+      - uses: actions/setup-go@v7
+        with:
+          go-version: ${{ matrix.go }}
+      - name: Vet
+        working-directory: profinetctl
+        run: go vet ./...
+      - name: golangci-lint
+        uses: golangci/golangci-lint-action@v9
+        with:
+          working-directory: profinetctl
+      - name: Test and coverage
+        working-directory: profinetctl
+        run: make coverage
+      - name: Typecheck for 32-bit targets
+        working-directory: profinetctl
+        run: make cross
+      - name: Build every release target
+        working-directory: profinetctl
+        run: make build-all
+      - uses: actions/upload-artifact@v7
+        if: matrix.go == '1.26'
+        with:
+          name: coverage
+          path: profinetctl/coverage.out
