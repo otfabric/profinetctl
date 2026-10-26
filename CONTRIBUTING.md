@@ -5,13 +5,12 @@ Thanks for your interest. profinetctl is the command-line front end of [go-profi
 ## Getting started
 
 ```bash
-git clone https://github.com/otfabric/go-profinet.git
 git clone https://github.com/otfabric/profinetctl.git
 cd profinetctl
 make test
 ```
 
-Until go-profinet is released, `go.mod` replaces it with `../go-profinet`: keep both checkouts side by side. The Makefile sets `GOWORK=off`.
+The Makefile sets `GOWORK=off`. To work on go-profinet and profinetctl together, add `replace github.com/otfabric/go-profinet => ../go-profinet` to go.mod locally; do not commit it.
 
 ## Before you open a pull request
 

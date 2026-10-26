@@ -60,8 +60,6 @@ go install github.com/otfabric/profinetctl@latest
 
 or clone and `make build-nocheck` (the binary is `bin/profinetctl`). `make build-all` builds Linux (x86-64, ARM64, ARMv7), macOS (x86-64, ARM64) and Windows (x86-64, ARM64) binaries into `release/`.
 
-Until go-profinet has its first release, `go.mod` builds against a checkout of go-profinet next to this repository (`../go-profinet`).
-
 ## Privileges
 
 DCP, LLDP and the cyclic data are raw Ethernet frames (EtherType 0x8892 and 0x88CC), which ordinary users cannot send:

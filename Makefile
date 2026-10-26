@@ -5,8 +5,7 @@ help: ## This help
 
 .DEFAULT_GOAL := help
 
-# Parent otfabric/go.work does not list this module; isolate toolchain commands. The
-# replace directive of go.mod builds against ../go-profinet until go-profinet is released.
+# Parent otfabric/go.work does not list this module; isolate toolchain commands.
 export GOWORK := off
 
 # CI formats and lints with the Go version from go.mod, not with the toolchain installed here.
