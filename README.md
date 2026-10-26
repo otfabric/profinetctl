@@ -185,7 +185,7 @@ make coverage   # coverage, fails below 90 %
 make check      # everything CI runs
 ```
 
-The tests run profinetctl in process against go-profinet IO-Devices on a virtual Ethernet network, so they need neither privileges nor hardware. See [CONTRIBUTING.md](CONTRIBUTING.md).
+The tests run profinetctl in process against go-profinet IO-Devices on a virtual Ethernet network, so they need neither privileges nor hardware. `make pnet-smoke` runs every command family against an independent implementation, rt-labs p-net in Docker (the images of [profinet-interop](https://github.com/otfabric/profinet-interop)), on a real Linux bridge. See [CONTRIBUTING.md](CONTRIBUTING.md).
 
 ## License
 

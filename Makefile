@@ -1,4 +1,4 @@
-.PHONY: help all run test coverage cover compile cross lint lint-ci fmt fmt-check vet vuln build build-nocheck build-all release-all install clean
+.PHONY: help all run test coverage cover compile cross lint lint-ci fmt fmt-check vet vuln build build-nocheck build-all release-all install clean pnet-smoke
 
 help: ## This help
 	@awk 'BEGIN {FS = ":.*?## "} /^[a-zA-Z0-9_-]+:.*?## / {printf "\033[36m%-30s\033[0m %s\n", $$1, $$2}' $(MAKEFILE_LIST)
@@ -150,6 +150,9 @@ release-all: build-all ## Package the build binaries into tar.gz (Unix) or zip (
 			tar czf $(RELEASE_DIR)/$$bin.tar.gz -C $(RELEASE_DIR) $$bin; \
 		fi; \
 	done
+
+pnet-smoke: ## Run profinetctl against p-net in Docker (needs profinet-interop's images: make images there)
+	@scripts/pnet-smoke.sh
 
 install: build ## Install the built binary to /usr/local/bin
 	@echo "Installing $(APP_NAME) to /usr/local/bin"
