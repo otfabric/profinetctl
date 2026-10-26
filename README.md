@@ -3,6 +3,8 @@
 [![Go Version](https://img.shields.io/badge/Go-1.25+-00ADD8?style=flat&logo=go)](https://go.dev/)
 [![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](LICENSE)
 [![CI Status](https://github.com/otfabric/profinetctl/actions/workflows/ci.yml/badge.svg)](https://github.com/otfabric/profinetctl/actions/workflows/ci.yml)
+[![Code Coverage](https://codecov.io/gh/otfabric/profinetctl/graph/badge.svg)](https://codecov.io/gh/otfabric/profinetctl)
+[![Latest Release](https://img.shields.io/github/v/release/otfabric/profinetctl?label=release)](https://github.com/otfabric/profinetctl/releases)
 
 **profinetctl is a command-line tool for PROFINET IO (IEC 61158-6-10 / IEC 61784-2), the industrial Ethernet of PLCs, remote IO, drives and field devices.** It finds the devices on a network and assigns their station names and IP addresses with DCP, reads their identification (I&M0–4), records and diagnosis over DCE/RPC, inspects, validates and generates GSDML files, lists LLDP neighbors and maps the cabling, and connects to a device as IO-Controller to watch its cyclic IO data and alarms.
 
