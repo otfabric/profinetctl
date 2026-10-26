@@ -1,0 +1,47 @@
+name: CI
+run-name: "CI (${{ github.event_name }}) on ${{ github.ref_name }} by @${{ github.actor }}"
+
+on:
+  push:
+    branches: ["**"]
+  pull_request:
+    branches: ["**"]
+
+permissions:
+  contents: read
+  id-token: write
+
+jobs:
+  ci:
+    uses: otfabric/.github/.github/workflows/go-ci.yml@v2
+    with:
+      codecov-name: profinetctl
+      go-versions: '["1.25", "1.26"]'
+      # Test the cmd packages as well (the shared default skips /cmd) and attribute
+      # coverage across the whole module, matching `make coverage`.
+      test-exclude-regex: "/example(s)?($|/)"
+      coverpkg: ./...
+    secrets: inherit
+
+  # The shared workflow builds for 64-bit only; linux/arm/v7 is a release target, where int
+  # has 32 bits. It also does not enforce the coverage minimum of `make coverage`.
+  cross:
+    name: Typecheck for 32-bit targets, build every release target
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v7
+      - uses: actions/setup-go@v7
+        with:
+          go-version-file: go.mod
+      - run: make cross
+      - run: make build-all
+
+  coverage:
+    name: Coverage ≥ 90%
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v7
+      - uses: actions/setup-go@v7
+        with:
+          go-version-file: go.mod
+      - run: make coverage
