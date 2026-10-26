@@ -4,7 +4,8 @@
 # Generates docs/EXAMPLES.md: real output of profinetctl commands against
 # rt-labs p-net (profinet-interop's image) and two go-profinet IO-Devices
 # (go-profinet's interop tool otfnode) on a Docker bridge network. Needs
-# Docker, the profinet-interop images and ../go-profinet.
+# Docker, the profinet-interop images and ../go-profinet. PROFINETCTL_BIN
+# runs a given Linux binary (a release archive's) instead of building one.
 set -eu
 
 ROOT=$(cd "$(dirname "$0")/.." && pwd)
@@ -27,7 +28,11 @@ cleanup() {
 }
 trap cleanup EXIT
 
-(cd "$ROOT" && GOWORK=off CGO_ENABLED=0 GOOS=linux GOARCH="$ARCH" go build -o "$WORK/profinetctl" .)
+if [ -n "${PROFINETCTL_BIN:-}" ]; then
+	cp "$PROFINETCTL_BIN" "$WORK/profinetctl"
+else
+	(cd "$ROOT" && GOWORK=off CGO_ENABLED=0 GOOS=linux GOARCH="$ARCH" go build -o "$WORK/profinetctl" .)
+fi
 (cd "$GP" && GOWORK=off CGO_ENABLED=0 GOOS=linux GOARCH="$ARCH" go build -o "$WORK/otfnode" ./interop/otfnode)
 cp "$ROOT/testdata/pnet-model.json" "$WORK/"
 docker build -q -t "$OTF_IMAGE" "$GP/interop/runner" >/dev/null
