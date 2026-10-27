@@ -191,7 +191,7 @@ type validateResult struct {
 	Scope string `json:"scope"`
 }
 
-const validationScope = "structure, attribute types and references of go-profinet's GSDML catalog (schema versions 2.25 to 2.45); not PI's GSDML checker"
+const validationScope = "structure, attribute types and references of go-profinet's GSDML catalog (schema versions 2.25 to 2.45), and whether each submodule's IO data fits an RT frame; not PI's GSDML checker"
 
 func (r validateResult) MarshalTextOutput() (string, error) {
 	var b strings.Builder
@@ -361,7 +361,8 @@ func newGSDMLCmd(a *app) *cobra.Command {
 		Short: "Validate a GSDML file; exit code 7 when it has issues",
 		Long: `Check a GSDML file against go-profinet's catalog of the GSDML schema: the required
 elements and attributes, their lexical types, and the references between
-elements. The official schemas of PROFIBUS & PROFINET International are licensed
+elements; and that the input and the output data of every submodule fit an RT
+frame. The official schemas of PROFIBUS & PROFINET International are licensed
 to its members and are not part of profinetctl: this is not PI's GSDML checker.`,
 		Args: cobra.ExactArgs(1),
 		RunE: func(c *cobra.Command, args []string) error {
