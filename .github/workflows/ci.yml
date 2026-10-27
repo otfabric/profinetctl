@@ -25,6 +25,16 @@ jobs:
 
   # The shared workflow builds for 64-bit only; linux/arm/v7 is a release target, where int
   # has 32 bits. It also does not enforce the coverage minimum of `make coverage`.
+  # RELEASE.md in the format the shared release workflow reads: without
+  # it a release body is a commit log.
+  release-notes:
+    name: Release notes format
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    steps:
+      - uses: actions/checkout@v7
+      - run: make release-notes-check
+
   cross:
     name: Typecheck for 32-bit targets, build every release target
     runs-on: ubuntu-latest

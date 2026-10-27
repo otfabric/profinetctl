@@ -32,7 +32,7 @@ These conventions are a **stable contract** for scripting. Field names are snake
 | `lldp neighbors` | `{"interface", "neighbors": [{"mac", "chassis_id", "port_id", "ttl", "system_name", "system_description", "port_description", "management_address", "chassis_mac", "alias", "line_delay"}]}` |
 | `topology` | `{"host_neighbors", "devices": [{"station", "mac", "ip", "ports": [{"subslot", "port_id", "link", "peers": [{"station", "port", "mac", "line_delay"}]}], "error"}], "links": [{"a", "a_port", "b", "b_port"}]}` |
 | `gsdml inspect` | `{"file", "schema_version", "vendor_id", "device_id", "vendor_name", "family", "device_access_points": [...], "valid", "issues"}` |
-| `gsdml validate` | `{"file", "valid", "issues": [{"path", "message"}], "scope"}` |
+| `gsdml validate` | `{"file", "valid", "issues": [{"path", "message", "severity", "rule"}], "scope"}`; `severity` is `"error"` (validate reports errors only), `rule` names the rule broken: `"structure"` (or absent), `"reference"` or `"io-data-length"` (input or output data too long for an RT frame) |
 | `gsdml modules`, `gsdml submodules` | `{"dap", "modules": [...]}`, `{"dap", "submodules": [...]}` |
 | `ar` | `{"station", "mac", "ip", "ar": {"ar_uuid", "session_key", "ar_type", "rt_class", "advanced", "device_address", "local_alarm_ref", "remote_alarm_ref", "input": iocr, "output": iocr}, "module_diff", "differences"}`; an iocr has `frame_id`, `data_length`, `send_clock_factor`, `reduction_ratio`, `watchdog_factor`, `data_hold_factor`, `cycle_ms` |
 | `iocr` | `{"ar_uuid", "entries": [{"iocr", "frame_id", "kind": "data" \| "iocs", "slot", "subslot", "offset", "length"}]}` |

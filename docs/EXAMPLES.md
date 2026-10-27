@@ -281,7 +281,7 @@ Device access points: 1
 ```console
 $ profinetctl gsdml validate otf-device.xml
 otf-device.xml: valid
-checked: structure, attribute types and references of go-profinet's GSDML catalog (schema versions 2.25 to 2.45); not PI's GSDML checker
+checked: structure, attribute types and references of go-profinet's GSDML catalog (schema versions 2.25 to 2.45), and whether each submodule's IO data fits an RT frame; not PI's GSDML checker
 ```
 
 ```console
