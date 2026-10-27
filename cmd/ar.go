@@ -45,6 +45,10 @@ type arOptions struct {
 	rpcPort         int
 	controllerName  string
 	activityTimeout time.Duration
+	slots           []uint
+	peerChecks      []string
+	mrpRole         string
+	mrpDomain       string
 }
 
 // The default watchdog and data hold factors, in cycles: 10, go-profinet's
@@ -73,6 +77,10 @@ func addAROptions(c *cobra.Command, o *arOptions) {
 	f.IntVar(&o.rpcPort, "rpc-port", rpc.Port, "UDP port of the controller's RPC server (devices send ApplicationReady to it)")
 	f.StringVar(&o.controllerName, "controller-name", "profinetctl", "Station name of the controller in the AR")
 	f.DurationVar(&o.activityTimeout, "activity-timeout", 10*time.Second, "CM initiator activity timeout")
+	f.UintSliceVar(&o.slots, "slot", nil, "Expect only these slots besides the DAP (shared device: another controller owns the rest); repeatable or comma-separated")
+	f.StringVar(&o.mrpRole, "mrp-role", "", "Give the device a media redundancy role before PrmEnd: client, manager or off (MRP records; needs a multiport device)")
+	f.StringVar(&o.mrpDomain, "mrp-domain-name", "", "With --mrp-role: the MRP domain name (default mrpdomain-1)")
+	f.StringArrayVar(&o.peerChecks, "peer-check", nil, "Expected neighbor of a port, written as PDPortDataCheck: PORT=STATION/PORT, e.g. 1=switch-1/port-003 (repeatable)")
 }
 
 // parsedAR is the validated configuration of an AR.
@@ -109,10 +117,31 @@ func (o *arOptions) parse() (*parsedAR, error) {
 	if err := plug(m, o.plugs); err != nil {
 		return nil, err
 	}
+	if len(o.slots) > 0 {
+		var slots []uint16
+		for _, s := range o.slots {
+			if s == 0 || s > 0x7FFF {
+				return nil, errs.InvalidInput(errs.CodeInvalidInput, fmt.Sprintf("--slot %d: want a module slot from 1", s), nil)
+			}
+			if _, ok := m.Module(uint16(s)); !ok {
+				return nil, errs.InvalidInput(errs.CodeInvalidInput, fmt.Sprintf("--slot %d: the configuration has no module there", s), nil)
+			}
+			slots = append(slots, uint16(s))
+		}
+		m = m.WithSlots(slots...)
+	}
 	if err := m.Validate(); err != nil {
 		return nil, errs.InvalidInput(errs.CodeInvalidModel, err.Error(), err)
 	}
-	p := &parsedAR{model: m, cfg: controller.DeviceConfig{
+	checks, err := parsePeerChecks(o.peerChecks)
+	if err != nil {
+		return nil, errs.InvalidInput(errs.CodeInvalidInput, "--peer-check "+err.Error(), err)
+	}
+	mrps, err := mrpSetting(o.mrpRole, o.mrpDomain)
+	if err != nil {
+		return nil, errs.InvalidInput(errs.CodeInvalidInput, "--mrp-role "+err.Error(), err)
+	}
+	p := &parsedAR{model: m, cfg: controller.DeviceConfig{PeerChecks: checks, MRP: mrps,
 		StationName: o.station, Model: m, Advanced: o.advanced, SendClockFactor: o.sendClock, ReductionRatio: o.reductionRatio,
 		WatchdogFactor: o.watchdog, DataHoldFactor: o.dataHold, ActivityTimeout: o.activityTimeout, ReconnectMax: 2 * time.Second,
 	}}

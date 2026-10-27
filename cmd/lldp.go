@@ -371,5 +371,6 @@ without an IP address cannot be read. Exit code 7 when some could not be read.`,
 	}
 	c.Flags().DurationVar(&wait, "wait", 2*time.Second, "How long DCP Identify collects responses")
 	c.Flags().DurationVar(&lldpWait, "lldp-wait", 0, "Also listen this long for the host's own LLDP neighbor")
+	c.AddCommand(newTopologyCheckCmd(a))
 	return c
 }
