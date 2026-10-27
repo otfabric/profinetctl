@@ -23,6 +23,35 @@ ending with a `---` line and no `---` line inside a section
 
 ---
 
+## v0.2.0
+
+**Date:** 2026-10-27
+**Previous release:** v0.1.2
+
+Built on go-profinet v0.3.0
+([release notes](https://github.com/otfabric/go-profinet/releases/tag/v0.3.0)):
+commands for the features of its software-only roadmap. No change to the
+output or exit codes of existing commands.
+
+- `gsdml check FILE [--strict]`: the full GSDML check, every issue with its
+  severity (error, warning, unvalidated) and rule; exit code 7 on errors,
+  with `--strict` on any issue.
+- `gsdml gsdx FILE`: inspect a GSDX container (parts, relationships, core
+  properties, signature metadata; signatures are not verified, PI's GSDX
+  rules are members only), each GSDML part checked; `--extract` writes one
+  part.
+- `topology check --link A/PORT=B/PORT | --expect FILE`: verify the cabling
+  against the expected links; exit code 7 when it differs.
+- `hello listen`: stream the DCP Hellos of devices that announce themselves.
+- `mrp status`: a device's MRP role, domain, ring state and ring ports.
+- `connect` and the AR commands: `--slot N` expects only some modules
+  (shared device), `--peer-check PORT=STATION/PORT` writes a peer check,
+  `--mrp-role client|manager|off` writes the MRP records of a multiport
+  device.
+- JSON of the new commands in [docs/json-output.md](docs/json-output.md).
+
+---
+
 ## v0.1.2
 
 **Date:** 2026-10-27
