@@ -47,6 +47,8 @@ type arOptions struct {
 	activityTimeout time.Duration
 	slots           []uint
 	peerChecks      []string
+	mrpRole         string
+	mrpDomain       string
 }
 
 // The default watchdog and data hold factors, in cycles: 10, go-profinet's
@@ -76,6 +78,8 @@ func addAROptions(c *cobra.Command, o *arOptions) {
 	f.StringVar(&o.controllerName, "controller-name", "profinetctl", "Station name of the controller in the AR")
 	f.DurationVar(&o.activityTimeout, "activity-timeout", 10*time.Second, "CM initiator activity timeout")
 	f.UintSliceVar(&o.slots, "slot", nil, "Expect only these slots besides the DAP (shared device: another controller owns the rest); repeatable or comma-separated")
+	f.StringVar(&o.mrpRole, "mrp-role", "", "Give the device a media redundancy role before PrmEnd: client, manager or off (MRP records; needs a multiport device)")
+	f.StringVar(&o.mrpDomain, "mrp-domain-name", "", "With --mrp-role: the MRP domain name (default mrpdomain-1)")
 	f.StringArrayVar(&o.peerChecks, "peer-check", nil, "Expected neighbor of a port, written as PDPortDataCheck: PORT=STATION/PORT, e.g. 1=switch-1/port-003 (repeatable)")
 }
 
@@ -133,7 +137,11 @@ func (o *arOptions) parse() (*parsedAR, error) {
 	if err != nil {
 		return nil, errs.InvalidInput(errs.CodeInvalidInput, "--peer-check "+err.Error(), err)
 	}
-	p := &parsedAR{model: m, cfg: controller.DeviceConfig{PeerChecks: checks,
+	mrps, err := mrpSetting(o.mrpRole, o.mrpDomain)
+	if err != nil {
+		return nil, errs.InvalidInput(errs.CodeInvalidInput, "--mrp-role "+err.Error(), err)
+	}
+	p := &parsedAR{model: m, cfg: controller.DeviceConfig{PeerChecks: checks, MRP: mrps,
 		StationName: o.station, Model: m, Advanced: o.advanced, SendClockFactor: o.sendClock, ReductionRatio: o.reductionRatio,
 		WatchdogFactor: o.watchdog, DataHoldFactor: o.dataHold, ActivityTimeout: o.activityTimeout, ReconnectMax: 2 * time.Second,
 	}}

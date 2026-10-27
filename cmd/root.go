@@ -127,6 +127,7 @@ Raw Ethernet access needs privileges: root or CAP_NET_RAW on Linux, access to
 		newLLDPCmd(a),
 		newTopologyCmd(a),
 		newHelloCmd(a),
+		newMRPCmd(a),
 		newCompletionCmd(),
 		newVersionCmd(),
 	)
