@@ -94,11 +94,14 @@ A missing privilege exits with code 4 and the error code `permission_denied`. `p
 | `status` | reachability (DCP, RPC), diagnosis by severity, link and neighbor of each port |
 | `lldp neighbors` | the LLDP neighbors of the host's interface |
 | `topology [--lldp-wait D]` | every device's port neighbors (PDRealData) and the links between them |
+| `topology check --link A/PORT=B/PORT ... \| --expect FILE` | verify the cabling against the expected links: each link ok, missing, wrong peer, unknown port or unverified (exit code 7 when it differs) |
+| `hello listen [--duration D]` | stream the DCP Hello frames devices send at start and on link up |
 | `gsdml inspect FILE` | identity, schema version, device access points, modules |
 | `gsdml validate FILE` | structural validation (exit code 7 when it finds issues) |
+| `gsdml check FILE [--strict]` | the full check: errors, warnings and unvalidated content, each with its rule (exit code 7 on errors, with `--strict` on any issue) |
 | `gsdml modules FILE`, `gsdml submodules FILE` | the module and submodule types, with IO lengths and records |
 | `gsdml generate --model MODEL.json [-O FILE\|DIR]` | the GSDML file of a go-profinet device model |
-| `connect` | establish an AR as IO-Controller and run it: states and alarms are streamed, then a summary |
+| `connect` | establish an AR as IO-Controller and run it: states and alarms are streamed, then a summary; `--slot N` expects only some modules (shared device: another controller owns the rest), `--peer-check PORT=STATION/PORT` has the device watch a port's neighbor |
 | `ar` | establish an AR and show what Connect negotiated (AR, IOCRs, ModuleDiff) |
 | `iocr` | the layout of the IOCRs: data objects, IOPS and IOCS at their offsets |
 | `io status`, `io monitor`, `io statistics` | a snapshot of the inputs and output statuses; the inputs at an interval; the cyclic counters |
