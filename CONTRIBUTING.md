@@ -32,6 +32,9 @@ runs formatting (`fmt`, `fmt-check` with the gofmt of the Go version in go.mod),
 | `cmd/lldp.go` | LLDP neighbors and topology |
 | `cmd/gsdml.go` | GSDML commands |
 | `cmd/ar.go` | the commands that establish an AR as IO-Controller |
+| `cmd/roadmap.go` | `hello listen`, `gsdml check`, `topology check`, the `--peer-check` setting of `connect` |
+| `cmd/v03.go` | `gsdml gsdx`, `mrp status`, the `--mrp-role` setting of `connect` |
+| `cmd/completion.go`, `internal/cli` | shell completion |
 | `internal/errs` | typed errors: kind (exit code) and code |
 | `internal/format`, `internal/runner` | text, table and JSON output, fatal errors |
 

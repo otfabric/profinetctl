@@ -153,16 +153,34 @@ type topoCheckResult struct {
 	Report controller.TopologyReport `json:"report"`
 }
 
+// MarshalTextOutput writes one line per expected link, then the links
+// nobody expected, the stations that could not be read and the verdict.
 func (r topoCheckResult) MarshalTextOutput() (string, error) {
-	b, err := json.MarshalIndent(r.Report, "", "  ")
-	if err != nil {
-		return "", err
+	var b strings.Builder
+	for _, l := range r.Report.Links {
+		fmt.Fprintf(&b, "%s — %s: %s", l.Link.A, l.Link.B, l.Verdict)
+		if l.Detail != "" {
+			fmt.Fprintf(&b, " (%s)", l.Detail)
+		}
+		b.WriteString("\n")
 	}
-	verdict := "topology as expected"
-	if !r.OK {
-		verdict = "topology differs"
+	for _, l := range r.Report.Unexpected {
+		fmt.Fprintf(&b, "%s — %s: unexpected\n", l.A, l.B)
 	}
-	return string(b) + "\n" + verdict + "\n", nil
+	stations := make([]string, 0, len(r.Report.Unreachable))
+	for s := range r.Report.Unreachable {
+		stations = append(stations, s)
+	}
+	sort.Strings(stations)
+	for _, s := range stations {
+		fmt.Fprintf(&b, "%s: unreachable (%s)\n", s, r.Report.Unreachable[s])
+	}
+	if r.OK {
+		b.WriteString("topology as expected\n")
+	} else {
+		b.WriteString("topology differs\n")
+	}
+	return b.String(), nil
 }
 
 // Partial reports a topology that differs: exit code 7.

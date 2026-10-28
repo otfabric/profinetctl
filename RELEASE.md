@@ -23,6 +23,39 @@ ending with a `---` line and no `---` line inside a section
 
 ---
 
+## v0.3.2
+
+**Date:** 2026-10-28
+**Previous release:** v0.3.1
+
+## Summary
+
+`topology check` speaks text, and the documentation was checked command
+by command against the code.
+
+## Changes
+
+- `topology check` with `--format text` writes one line per expected link
+  (its verdict and what the ends report), the unexpected links and the
+  unreachable stations; it printed the JSON report before.
+- Stream events without detail (`reparameterized` that succeeded) end
+  without a trailing space.
+- docs/json-output.md: `device info` names `module_ident_number` and
+  `submodule_ident_number` (as the code always did); `disconnect` and
+  `gsdml generate` results; optional lists are omitted when empty.
+- docs/exitcodes.md: exit 7 of `gsdml check`, `gsdml gsdx` and `topology
+  check`; `hello listen` streams.
+- README: the flags of `discover`, `record write`/`im write` in an IOCAR,
+  `lldp neighbors`, `topology`, `mrp status`, `io`, and the AR flags of
+  `connect`; GSDX inspection versus signature verification.
+- SECURITY.md: 0.3.x supported; `connect --param/--reparam/--mrp-role/
+  --peer-check/--assign-ip` among the commands that change a device.
+- `make examples-doc` also shows `gsdml check`, `gsdml generate`,
+  `topology check`, `alarms` and `connect --reparam`; docs/EXAMPLES.md on
+  main is regenerated from this release's binary.
+
+---
+
 ## v0.3.1
 
 **Date:** 2026-10-28

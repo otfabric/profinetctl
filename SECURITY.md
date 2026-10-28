@@ -14,7 +14,8 @@ We will acknowledge your report within 48 hours and aim to provide a fix or miti
 
 | Version | Supported |
 |---------|-----------|
-| 0.1.x | Yes |
+| 0.3.x | Yes |
+| < 0.3 | No |
 
 ## Security Considerations
 
@@ -32,11 +33,15 @@ PROFINET IO (without the Security Class 1–3 extensions, which profinetctl does
 | `name set`, `ip set` | change the station name or IP address; a running AR with an IO-Controller that finds the device by its name or address breaks, and the controller cannot find the device again until the name is restored |
 | `reset` | DCP ResetToFactory: erases configuration (by `--mode`) and aborts the device's ARs. It needs `--confirm` with the target's station name or MAC address |
 | `record write`, `im write` | write records in a device access AR; a parameter record changes how the device behaves |
+| `connect --param`, `--reparam` | write parameter records before PrmEnd, or re-parameterize the running AR: the device's behaviour changes |
+| `connect --mrp-role` | writes the MRP records of a multiport device: changes its ring redundancy role; a wrong role can open or loop a ring |
+| `connect --peer-check` | writes PDPortDataCheck: the device reports a diagnosis when the port's neighbor differs |
+| `connect --assign-ip` (`--permanent-ip`) | sets the IP address with DCP before connecting, permanently with `--permanent-ip` |
 | `connect`, `ar`, `iocr`, `io`, `alarms` | establish an AR as IO-Controller. A device accepts one controller AR (or a few): connecting to a device that a PLC controls is refused, or takes the device from it when the PLC's AR is down. With `--output` profinetctl drives the device's outputs: **actuators move**. Outputs not given are sent with IOPS *bad*, which keeps them in their safe state |
 | `disconnect` | releases an AR: the device stops its outputs (safe state) |
 | `signal` | flashes the LED; harmless |
 
-Read-only commands (`discover`, `identify`, `name get`, `ip get`, `record read`, `im read`, `diagnostics`, `device info`, `status`, `lldp neighbors`, `topology`) send DCP requests and ReadImplicit calls only. DCP Identify is multicast: every device on the segment answers.
+Read-only commands (`discover`, `identify`, `name get`, `ip get`, `record read`, `im read`, `diagnostics`, `device info`, `status`, `lldp neighbors`, `topology`, `topology check`, `mrp status`) send DCP requests and ReadImplicit calls only; `hello listen` only listens, and the `gsdml` commands read local files. DCP Identify is multicast: every device on the segment answers.
 
 ### Privileges
 
