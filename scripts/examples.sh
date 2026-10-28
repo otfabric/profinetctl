@@ -146,7 +146,6 @@ ex io monitor -s otf-a --gsdml otf-device.xml --plug 3=0x30 --interval 500ms --d
 ex io statistics -s pnet-dut --model pnet-model.json --duration 3s
 ex connect -s otf-a --gsdml otf-device.xml --plug 3=0x30 --output 2:1:a1b2c3d4 --duration 4s
 ex connect -s pnet-dut --model pnet-model.json --duration 1s -o json
-ex alarms -s otf-a --gsdml otf-device.xml --plug 3=0x30 --duration 4s
 ex connect -s otf-a --gsdml otf-device.xml --plug 3=0x30 --reparam 2:1:0x10:0007 --duration 3s
 ex record read -s otf-a --slot 2 --index 0x10
 

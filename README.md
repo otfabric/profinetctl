@@ -177,6 +177,8 @@ Details in [docs/exitcodes.md](docs/exitcodes.md).
 
 ## Limitations
 
+What go-profinet (and so profinetctl) supports and how it is tested against independent implementations is in go-profinet's [support, feature and interop matrix](https://github.com/otfabric/go-profinet/blob/main/docs/FEATURE-STATUS.md).
+
 - IO-Controller with RT_CLASS_1 and RT_CLASS_2 (advanced startup); no IRT (RT_CLASS_3), no PROFIsafe. MRP: it gives a multiport device its role (`--mrp-role`) and reads its state (`mrp status`); it is not an MRP node itself. The automatic manager (MRA) is a role of a device's own configuration (PROFINET's MRP_Role has no value for it), so `--mrp-role` cannot set it; `mrp status` shows what such a device acts as, client or manager. Shared device: it expects a subset of the modules (`--slot`); another controller owns the rest. System redundancy (S2), an experiment of go-profinet that is not interoperable, is not exposed.
 - `connect --reparam` needs a device that accepts PrmBegin in Data: go-profinet's device and profinet-py do; p-net and pnio-rs refuse it (the AR runs on, the event reports the refusal).
 - OT Fabric is not a PROFIBUS & PROFINET International member: no official XSD validation, no verification of GSDX signatures (`gsdml gsdx` inspects the container), no MRCD, no certification. The full impact is in go-profinet's [docs/PI-MEMBERSHIP.md](https://github.com/otfabric/go-profinet/blob/main/docs/PI-MEMBERSHIP.md).

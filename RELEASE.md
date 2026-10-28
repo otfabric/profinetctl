@@ -51,7 +51,7 @@ by command against the code.
 - SECURITY.md: 0.3.x supported; `connect --param/--reparam/--mrp-role/
   --peer-check/--assign-ip` among the commands that change a device.
 - `make examples-doc` also shows `gsdml check`, `gsdml generate`,
-  `topology check`, `alarms` and `connect --reparam`; docs/EXAMPLES.md on
+  `topology check` and `connect --reparam`; docs/EXAMPLES.md on
   main is regenerated from this release's binary.
 
 ---
