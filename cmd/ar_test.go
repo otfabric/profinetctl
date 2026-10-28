@@ -191,6 +191,26 @@ func TestConnect(t *testing.T) {
 	}
 }
 
+// TestConnectReparam: connect re-parameterizes the running AR and
+// reports it; the device's record holds the new value.
+func TestConnectReparam(t *testing.T) {
+	t.Parallel()
+	n := newTestNet(t)
+	n.device("dev-a", "192.168.0.10")
+	gf := gsdmlFile(t)
+	out := n.ok("-i", "pn0", "connect", "-s", "dev-a", "--gsdml", gf, "--param", "2:1:0x10:0003",
+		"--reparam", "2:1:0x10:0009", "--reparam-after", "300ms", "--duration", "2s", "--format", "json")
+	var re map[string]any
+	for _, e := range jsonLines(t, out) {
+		if e["event"] == "reparameterized" {
+			re = e
+		}
+	}
+	if re == nil || re["error"] != nil {
+		t.Fatalf("reparameterized event %v\n%s", re, out)
+	}
+}
+
 func TestConnectErrors(t *testing.T) {
 	t.Parallel()
 	n := newTestNet(t)
@@ -204,6 +224,7 @@ func TestConnectErrors(t *testing.T) {
 	for _, bad := range [][]string{
 		{"--output", "2:1"}, {"--output", "x:1:00"}, {"--output", "1:1:00"}, {"--output", "2:1:00"},
 		{"--param", "2:1:16"}, {"--param", "2:1:x:00"}, {"--assign-ip", "nope"},
+		{"--reparam", "2:1"}, {"--reparam", "2:1:x:00"},
 		{"--plug", "x"}, {"--plug", "4=x"}, {"--plug", "4=0x99"},
 	} {
 		n.fails(3, "", append(append([]string{}, base...), bad...)...)

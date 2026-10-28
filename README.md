@@ -103,7 +103,7 @@ A missing privilege exits with code 4 and the error code `permission_denied`. `p
 | `gsdml check FILE [--strict]` | the full check: errors, warnings and unvalidated content, each with its rule (exit code 7 on errors, with `--strict` on any issue) |
 | `gsdml modules FILE`, `gsdml submodules FILE` | the module and submodule types, with IO lengths and records |
 | `gsdml generate --model MODEL.json [-O FILE\|DIR]` | the GSDML file of a go-profinet device model |
-| `connect` | establish an AR as IO-Controller and run it: states and alarms are streamed, then a summary; `--slot N` expects only some modules (shared device: another controller owns the rest), `--peer-check PORT=STATION/PORT` has the device watch a port's neighbor, `--mrp-role client\|manager\|off` gives a multiport device its MRP role |
+| `connect` | establish an AR as IO-Controller and run it: states and alarms are streamed, then a summary; `--slot N` expects only some modules (shared device: another controller owns the rest), `--peer-check PORT=STATION/PORT` has the device watch a port's neighbor, `--mrp-role client\|manager\|off` gives a multiport device its MRP role, `--reparam SLOT:SUBSLOT:INDEX:HEX` re-parameterizes the running AR (PrmBegin … PrmEnd) |
 | `ar` | establish an AR and show what Connect negotiated (AR, IOCRs, ModuleDiff) |
 | `iocr` | the layout of the IOCRs: data objects, IOPS and IOCS at their offsets |
 | `io status`, `io monitor`, `io statistics` | a snapshot of the inputs and output statuses; the inputs at an interval; the cyclic counters |
@@ -175,7 +175,8 @@ Details in [docs/exitcodes.md](docs/exitcodes.md).
 
 ## Limitations
 
-- IO-Controller of conformance class A/B: RT_CLASS_1 and RT_CLASS_2 (advanced startup); no IRT (RT_CLASS_3), no MRP, no shared devices, no system redundancy, no PROFIsafe.
+- IO-Controller with RT_CLASS_1 and RT_CLASS_2 (advanced startup); no IRT (RT_CLASS_3), no PROFIsafe. MRP: it gives a multiport device its role (`--mrp-role`) and reads its state (`mrp status`); it is not an MRP node itself. Shared device: it expects a subset of the modules (`--slot`); another controller owns the rest. System redundancy (S2), an experiment of go-profinet that is not interoperable, is not exposed.
+- `connect --reparam` needs a device that accepts PrmBegin in Data: go-profinet's device and profinet-py do; p-net and pnio-rs refuse it (the AR runs on, the event reports the refusal).
 - OT Fabric is not a PROFIBUS & PROFINET International member: no official XSD validation, no GSDX or MRCD, no certification. The full impact is in go-profinet's [docs/PI-MEMBERSHIP.md](https://github.com/otfabric/go-profinet/blob/main/docs/PI-MEMBERSHIP.md).
 - `gsdml validate` checks go-profinet's catalog of the GSDML schema (structure, types, references), not the official schemas, which PROFIBUS & PROFINET International licenses to its members: it is not PI's GSDML checker.
 - `disconnect` cannot release an AR at devices that tie it to the RPC activity of its Connect (p-net); they close it after the CM activity timeout.
