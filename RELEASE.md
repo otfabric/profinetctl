@@ -23,6 +23,25 @@ ending with a `---` line and no `---` line inside a section
 
 ---
 
+## v0.3.1
+
+**Date:** 2026-10-28
+**Previous release:** v0.3.0
+
+## Summary
+
+Requires go-profinet v0.5.0 (MRP automatic manager, MRP verified against
+the Linux kernel's bridge MRP).
+
+## Changes
+
+- go-profinet v0.5.0: a device's unchanged state is no longer saved again,
+  and `mrp status` of a go-profinet device configured as an automatic
+  manager (MRA) shows the role it acts in.
+- README: MRA cannot be set with `--mrp-role` (no PROFINET MRP_Role value).
+
+---
+
 ## v0.3.0
 
 **Date:** 2026-10-28
