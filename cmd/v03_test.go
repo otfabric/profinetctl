@@ -151,8 +151,9 @@ func TestMRPStatus(t *testing.T) {
 	if out := n.ok("-i", "pn0", "mrp", "status", "-s", "ring-a"); !strings.Contains(out, "MRP manager") || !strings.Contains(out, "ring open") {
 		t.Fatalf("text:\n%s", out)
 	}
-	if _, _, code := n.run("-i", "pn0", "mrp", "status", "-s", "plain"); code == 0 {
-		t.Fatal("a device without MRP")
+	// A device without MRP answers the read with "invalid index".
+	if out := n.fails(6, "unsupported", "-i", "pn0", "mrp", "status", "-s", "plain"); !strings.Contains(out, "no media redundancy") {
+		t.Fatalf("a device without MRP:\n%s", out)
 	}
 	// The role, written by an AR.
 	n.ok("-i", "pn0", "connect", "-s", "ring-a", "--model", writeFile(t, "two.json", twoPortModel(t)), "--mrp-role", "client", "--duration", "300ms")

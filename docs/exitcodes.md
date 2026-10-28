@@ -9,7 +9,7 @@
 | 3 | Invalid input (`invalid_input`): a flag value, environment variable, GSDML file or model that does not make sense, an interface that does not exist. Nothing was sent |
 | 4 | Transport (`transport`): the interface cannot be opened (missing privileges: `permission_denied`), a socket cannot be bound or fails |
 | 5 | Timeout (`timeout`): the device did not answer a DCP request or an RPC call in time (`--timeout`), or an AR did not reach Running within `--connect-timeout` |
-| 6 | Refused or protocol error (`refused`, `protocol`): the device answered with a PNIO error status, refused a DCP Set with a block error, rejected the Connect, or answered with a malformed frame; more than one device answers to the station name; a device has no IP address for RPC |
+| 6 | Refused or protocol error (`refused`, `protocol`): the device answered with a PNIO error status, refused a DCP Set with a block error, rejected the Connect, or answered with a malformed frame; `mrp status` of a device without media redundancy (`unsupported`); more than one device answers to the station name; a device has no IP address for RPC |
 | 7 | Partial success: a **valid** result was written to stdout, and some of it failed: `gsdml validate` found issues, `gsdml check` found errors (with `--strict` any issue), `gsdml gsdx` found container issues or GSDML errors, `topology check` found differences, an I&M record or part of `device info`, `status` or `topology` could not be read |
 | 8 | Not found (`not_found`): no device answers to the station name (DCP Identify) |
 | 10 | Output or internal (`output`, `internal`): the result could not be written, or something unexpected happened |

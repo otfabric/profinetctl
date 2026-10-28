@@ -22,7 +22,7 @@ ARCH=$(docker version --format '{{.Server.Arch}}')
 OUT="$ROOT/docs/EXAMPLES.md"
 
 cleanup() {
-	docker rm -f "$NET-pnet" "$NET-otf-a" "$NET-otf-b" >/dev/null 2>&1 || true
+	docker rm -f "$NET-pnet" "$NET-otf-a" "$NET-otf-b" "$NET-otf-c" >/dev/null 2>&1 || true
 	docker network rm "$NET" >/dev/null 2>&1 || true
 	rm -rf "$WORK"
 }
@@ -50,7 +50,7 @@ run_dev() { # name host args...
 }
 run_dev pnet 10 "$PNET_IMAGE" device --station pnet-dut
 run_dev otf-a 20 "$OTF_IMAGE" /w/otfnode device -i eth0 -station otf-a -gsdml-out /w/otf-device.xml -alarm-after 2s
-run_dev otf-b 21 "$OTF_IMAGE" /w/otfnode device -i eth0 -station otf-b
+run_dev otf-b 21 "$OTF_IMAGE" /w/otfnode device -i eth0 -station otf-b -alarm-after 2s
 sleep 8
 
 # ex [--note TEXT] ARGS...: run profinetctl and append the command and its
@@ -71,6 +71,24 @@ ex() {
 		code=$?
 		set -e
 		[ "$code" -eq 0 ] || printf '[exit code %d]\n' "$code"
+		printf '```\n\n'
+	} >>"$OUT.tmp"
+}
+# ex_while CMD ARGS... -- profinetctl ARGS: run profinetctl in the background,
+# run CMD meanwhile (after a second), then append both like ex.
+ex_while() {
+	pre=""
+	while [ "$1" != "--" ]; do pre="$pre '$1'"; shift; done
+	shift
+	{
+		printf '```console\n$ profinetctl %s\n' "$*"
+		docker run --rm --network "$NET" --ip "$SUBNET.3" --mac-address 02:42:0a:8f:05:03 --cap-add NET_RAW --cap-add NET_ADMIN \
+			-e PROFINETCTL_INTERFACE=eth0 -v "$WORK":/w -w /w "$IMAGE" /w/profinetctl "$@" >"$WORK/bg.out" 2>&1 &
+		bg=$!
+		sleep 1
+		eval "$pre" >/dev/null
+		wait "$bg" || printf '[exit code %d]\n' "$?"
+		cat "$WORK/bg.out"
 		printf '```\n\n'
 	} >>"$OUT.tmp"
 }
@@ -124,6 +142,9 @@ ex record write -s pnet-dut --slot 1 --index 123 --data 01020304 --model pnet-mo
 ex im write -s pnet-dut --location 'bench 2' --model pnet-model.json
 ex im read -s pnet-dut --record 1
 
+section "DCP Hello" "\`hello listen\` shows the Hello a device sends when it starts (Fast Startup); otf-c is started while it listens."
+ex_while run_dev otf-c 23 "$OTF_IMAGE" /w/otfnode device -i eth0 -station otf-c -hello 1 -- hello listen --duration 5s
+
 section "LLDP and topology" ""
 ex lldp neighbors --wait 6s
 ex topology --wait 2s
@@ -148,6 +169,14 @@ ex connect -s otf-a --gsdml otf-device.xml --plug 3=0x30 --output 2:1:a1b2c3d4 -
 ex connect -s pnet-dut --model pnet-model.json --duration 1s -o json
 ex connect -s otf-a --gsdml otf-device.xml --plug 3=0x30 --reparam 2:1:0x10:0007 --duration 3s
 ex record read -s otf-a --slot 2 --index 0x10
+
+section "Alarms" "otf-b raises a diagnosis two seconds after its AR reaches Data; profinetctl acknowledges it and shows it."
+ex alarms -s otf-b --gsdml otf-device.xml --plug 3=0x30 --duration 5s
+ex diagnostics -s otf-b
+
+section "Media redundancy and releasing a stale AR" "\`mrp status\` reads the MRP records of a device (a single-port device has none). \`disconnect\` releases an AR another controller left behind, by its AR UUID and session key."
+ex mrp status -s otf-a
+ex disconnect -s otf-b --ar 01020304-0506-0708-090a-0b0c0d0e0f10 --session-key 1
 
 section "Errors and exit codes" "Exit codes are stable (see exitcodes.md); with \`-o json\` the error is a JSON object on stdout."
 ex identify -s nobody --wait 500ms

@@ -4,6 +4,7 @@ package cmd
 
 import (
 	"context"
+	"errors"
 	"fmt"
 	"os"
 	"strings"
@@ -198,6 +199,11 @@ func newMRPCmd(a *app) *cobra.Command {
 				defer cancel()
 				read := func(sub uint16, idx pnio.Index) (pnio.RawBlock, bool, error) {
 					b, err := s.rc.Read(cctx, rpc.NilUUID, controller.Record{Slot: 0, Subslot: sub, Index: idx}, 4096)
+					var se *pnio.StatusError
+					if errors.As(err, &se) && se.Status.Decode == pnio.DecodePNIORW && se.Status.Code1 == pnio.RWInvalidIndex {
+						// A device without media redundancy has no such record.
+						return pnio.RawBlock{}, false, nil
+					}
 					if err != nil {
 						return pnio.RawBlock{}, false, classify(fmt.Sprintf("read %#x of %#x", uint16(idx), sub), err)
 					}
@@ -212,7 +218,7 @@ func newMRPCmd(a *app) *cobra.Command {
 					return nil, err
 				}
 				if !ok {
-					return nil, errs.New(errs.KindRefused, errs.CodeUnsupported, "the device reports no MRP data", nil)
+					return nil, errs.New(errs.KindRefused, errs.CodeUnsupported, "the device has no media redundancy (no PDInterfaceMrpDataReal record)", nil)
 				}
 				real, err := pnio.DecodePDInterfaceMrpDataReal(blk)
 				if err != nil {
