@@ -52,6 +52,7 @@ These conventions are a **stable contract** for scripting. Field names are snake
 | `state` | `from`, `to` (Offline, Resolving, Connecting, Parameterizing, WaitApplicationReady, Running, Stopped), `error` on a failure |
 | `alarm` | `alarm`: `type` (Diagnosis, Process, Pull, Plug, ...), `priority` (`high`, `low`), `api`, `slot`, `subslot`, `module_ident_number`, `submodule_ident_number`, `sequence`, `usi`, `data`, `diagnosis` (decoded items of a diagnosis alarm) |
 | `module-diff` | `error`: the differences between the real and the expected configuration |
+| `reparameterized` | `connect --reparam`: the re-parameterization of the running AR ended; `error` when it failed |
 | `sample` | (`io monitor`) `inputs` |
 | `hello` | (`hello listen`) `device`: as an entry of `discover` |
 | `summary` | (`connect`, last) `state`, `error`, `stats`, `inputs` |

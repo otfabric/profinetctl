@@ -49,6 +49,9 @@ type arOptions struct {
 	peerChecks      []string
 	mrpRole         string
 	mrpDomain       string
+	// connect only: a re-parameterization of the running AR.
+	reparams     []string
+	reparamAfter time.Duration
 }
 
 // The default watchdog and data hold factors, in cycles: 10, go-profinet's
@@ -85,9 +88,10 @@ func addAROptions(c *cobra.Command, o *arOptions) {
 
 // parsedAR is the validated configuration of an AR.
 type parsedAR struct {
-	model   *model.Device
-	cfg     controller.DeviceConfig
-	outputs []outputValue
+	model    *model.Device
+	cfg      controller.DeviceConfig
+	outputs  []outputValue
+	reparams []controller.Parameter
 }
 
 type outputValue struct {
@@ -188,6 +192,20 @@ func (o *arOptions) parse() (*parsedAR, error) {
 			return nil, bad("param", fmt.Errorf("%q: %w", par, err))
 		}
 		p.cfg.Parameters = append(p.cfg.Parameters, controller.Parameter{Slot: slot, Subslot: sub, Index: pnio.Index(idx), Data: data})
+	}
+	for _, par := range o.reparams {
+		f, err := splitAddr(par, 4)
+		if err != nil {
+			return nil, bad("reparam", err)
+		}
+		slot, e1 := parseUint16(f[0])
+		sub, e2 := parseUint16(f[1])
+		idx, e3 := parseUint16(f[2])
+		data, e4 := parseHex(f[3])
+		if err := errors.Join(e1, e2, e3, e4); err != nil {
+			return nil, bad("reparam", fmt.Errorf("%q: %w", par, err))
+		}
+		p.reparams = append(p.reparams, controller.Parameter{Slot: slot, Subslot: sub, Index: pnio.Index(idx), Data: data})
 	}
 	return p, nil
 }
@@ -691,6 +709,25 @@ func (a *app) streamAR(c *cobra.Command, o *arOptions, duration, interval time.D
 			return err
 		}
 		defer s.close()
+		if len(p.reparams) > 0 {
+			// The re-parameterization runs beside the stream; its result
+			// is an event.
+			go func() {
+				select {
+				case <-time.After(o.reparamAfter):
+				case <-ctx.Done():
+					return
+				}
+				e := arEvent{Time: stamp(), Event: "reparameterized"}
+				if err := s.dev.Reparameterize(ctx, p.reparams); err != nil {
+					e.Error = classify("", err).Error()
+				}
+				select {
+				case s.events <- e:
+				default:
+				}
+			}()
+		}
 		var mu sync.Mutex
 		write := func(v any) error {
 			mu.Lock()
@@ -858,7 +895,12 @@ as zeros with a bad IOPS, so that the device keeps its outputs safe.
 
 The AR runs until --duration elapses (0: until interrupted with Ctrl-C), then is
 released. State changes and alarms are streamed (JSON Lines with --format json),
-followed by a summary. The controller reconnects after a failure.`,
+followed by a summary. The controller reconnects after a failure.
+
+With --reparam the AR is re-parameterized once it has run for --reparam-after:
+PrmBegin, the records written, PrmEnd and the device's ApplicationReady, while
+cyclic data goes on; a "reparameterized" event reports the result. Devices
+that do not support PrmBegin in Data refuse it, and the AR runs on.`,
 		Args: cobra.NoArgs,
 		RunE: func(c *cobra.Command, _ []string) error {
 			return a.streamAR(c, &o, duration, 0, nil, func(s *arSession) any { return s.summary() }, false)
@@ -866,6 +908,8 @@ followed by a summary. The controller reconnects after a failure.`,
 	}
 	addAROptions(c, &o)
 	c.Flags().DurationVar(&duration, "duration", 0, "How long to run the AR (0: until interrupted)")
+	c.Flags().StringArrayVar(&o.reparams, "reparam", nil, "Re-parameterize the running AR with this record: SLOT:SUBSLOT:INDEX:HEX (repeatable)")
+	c.Flags().DurationVar(&o.reparamAfter, "reparam-after", time.Second, "With --reparam: how long the AR runs before")
 	return c
 }
 

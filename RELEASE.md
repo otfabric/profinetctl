@@ -23,6 +23,32 @@ ending with a `---` line and no `---` line inside a section
 
 ---
 
+## v0.3.0
+
+**Date:** 2026-10-28
+**Previous release:** v0.2.0
+
+## Summary
+
+Requires go-profinet v0.4.0. `connect --reparam` re-parameterizes a
+running AR; the limitations say what profinetctl does with MRP, shared
+devices and system redundancy.
+
+## Changes
+
+- `connect --reparam SLOT:SUBSLOT:INDEX:HEX` (repeatable) and
+  `--reparam-after` (default 1 s): PrmBegin, the records, PrmEnd and the
+  device's ApplicationReady while cyclic data goes on; a `reparameterized`
+  event (with `error` when it failed) in the stream.
+- README limitations corrected: profinetctl gives a multiport device its
+  MRP role and reads its state, and expects a subset of modules on a shared
+  device (it said "no MRP, no shared devices"); S2 is not exposed.
+- go-profinet v0.4.0: an allocation-free AF_PACKET backend on Linux, stable
+  LLDP neighbor indexes in the device's SNMP agent, and fixes (a second
+  controller could be refused "out of AR resources").
+
+---
+
 ## v0.2.0
 
 **Date:** 2026-10-27
