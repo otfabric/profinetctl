@@ -79,23 +79,23 @@ A missing privilege exits with code 4 and the error code `permission_denied`. `p
 | Command | What it does |
 |---------|--------------|
 | `interfaces` | list the Ethernet interfaces |
-| `discover`, `devices` | DCP Identify: every device, or those matching `--station`, `--alias`, `--ip`, `--vendor/--device`; duplicate station names are flagged |
+| `discover`, `devices` | DCP Identify: every device, or those matching `--station`, `--alias`, `--ip`, `--vendor/--device`; duplicate station names are flagged; `--wait` (2s) and `--response-delay` (×10 ms, default 10) |
 | `identify` | the full DCP identity of one device |
 | `name get`, `name set NAME`, `name set --clear` | read or assign the station name (temporary, or `--permanent`) |
 | `ip get`, `ip set ADDR/PREFIX [--gateway GW]`, `ip set --clear` | read or assign the IP suite |
 | `signal` | flash the device's LED |
 | `reset --mode MODE --confirm TARGET` | DCP ResetToFactory (`communication`, `application`, `engineering`, `all-data`, `device`, `factory`) |
 | `record read --index I [--slot --subslot --api]` | ReadImplicit of any record, as hex, with the block types it holds |
-| `record write --index I --data HEX` | write a record in a device access AR |
+| `record write --index I --data HEX \| --data-file FILE` | write a record in a device access AR, or with `--gsdml`/`--model` (and `--dap`) in an IOCAR, for devices without device access |
 | `im read [--record 0,1,...]` | I&M0, and the I&M1–4 it lists as supported |
-| `im write --function --location --date --descriptor --signature` | write I&M1–4 of the DAP |
+| `im write --function --location --date --descriptor --signature` | write I&M1–4 of the DAP (in an IOCAR with `--gsdml`/`--model`, as `record write`) |
 | `diagnostics [--slot --subslot]` | the diagnosis of the device or of one submodule, decoded |
 | `device info` | identity, I&M0 and the real configuration (modules and submodules, RealIdentificationData) |
 | `status` | reachability (DCP, RPC), diagnosis by severity, link and neighbor of each port |
-| `lldp neighbors` | the LLDP neighbors of the host's interface |
-| `topology [--lldp-wait D]` | every device's port neighbors (PDRealData) and the links between them |
+| `lldp neighbors [--wait D]` | the LLDP neighbors of the host's interface (listens 6 s) |
+| `topology [--wait D] [--lldp-wait D]` | every device's port neighbors (PDRealData) and the links between them |
 | `topology check --link A/PORT=B/PORT ... \| --expect FILE` | verify the cabling against the expected links: each link ok, missing, wrong peer, unknown port or unverified (exit code 7 when it differs) |
-| `mrp status` | a device's media redundancy: role, domain, ring state (manager), ring ports |
+| `mrp status [--ports N]` | a device's media redundancy: role, domain, ring state (manager), ring ports (reads N port submodules, default 4) |
 | `hello listen [--duration D]` | stream the DCP Hello frames devices send at start and on link up |
 | `gsdml inspect FILE` | identity, schema version, device access points, modules |
 | `gsdml validate FILE` | structural validation (exit code 7 when it finds issues) |
@@ -106,12 +106,12 @@ A missing privilege exits with code 4 and the error code `permission_denied`. `p
 | `connect` | establish an AR as IO-Controller and run it: states and alarms are streamed, then a summary; `--slot N` expects only some modules (shared device: another controller owns the rest), `--peer-check PORT=STATION/PORT` has the device watch a port's neighbor, `--mrp-role client\|manager\|off` gives a multiport device its MRP role, `--reparam SLOT:SUBSLOT:INDEX:HEX` re-parameterizes the running AR (PrmBegin … PrmEnd) |
 | `ar` | establish an AR and show what Connect negotiated (AR, IOCRs, ModuleDiff) |
 | `iocr` | the layout of the IOCRs: data objects, IOPS and IOCS at their offsets |
-| `io status`, `io monitor`, `io statistics` | a snapshot of the inputs and output statuses; the inputs at an interval; the cyclic counters |
+| `io status [--settle D]`, `io monitor [--interval D] [--changes]`, `io statistics [--duration D]` | a snapshot of the inputs and output statuses; the inputs at an interval (only changes with `--changes`); the cyclic counters over 5 s |
 | `alarms` | establish an AR and stream the device's alarms |
 | `disconnect --ar UUID --session-key N` | release an AR another controller left behind |
 | `version`, `completion SHELL` | version; shell completion for bash, zsh, fish and PowerShell |
 
-Every command has `--help`. A device is selected by `--station NAME` (resolved with DCP Identify; several answers are an error) or `--mac`; `--ip` overrides the RPC address it reports.
+Every command has `--help`. A device is selected by `--station NAME` (resolved with DCP Identify, which waits `--wait`, default 1s; several answers are an error) or `--mac`; `--ip` overrides the RPC address it reports.
 
 ### Global flags
 
@@ -143,11 +143,13 @@ $ sudo profinetctl -i eth0 connect -s io-rack-1 --gsdml device.xml --plug 3=0x30
 - Outputs not given with `--output SLOT:SUBSLOT:HEX` are sent as zeros with IOPS *bad*, so that the device keeps them in their safe state.
 - When the device's real configuration differs, the AR still runs (PROFINET reports the difference in the ModuleDiffBlock): profinetctl warns on stderr and streams a `module-diff` event.
 - The controller re-establishes the AR after a failure; `connect` streams every state change. Ctrl-C ends it normally: the AR is released and the summary written.
-- `--assign-ip ADDR/PREFIX` sets the device's address with DCP before connecting.
+- `--assign-ip ADDR/PREFIX` sets the device's address with DCP before connecting (`--permanent-ip` stores it).
+- AR timing and identity: `--connect-timeout` (20s, until Running), `--activity-timeout` (10s, CM initiator activity), `--controller-name` (`profinetctl`).
+- `--slot N` (repeatable) expects only those modules (shared device), `--peer-check PORT=STATION/PORT` has the device check a port's neighbor, `--mrp-role client|manager|off` (with `--mrp-domain-name`) sets a multiport device's MRP role, and `--reparam SLOT:SUBSLOT:INDEX:HEX` re-parameterizes the running AR after `--reparam-after` (1s).
 
 ## Output
 
-`--format text` (default) is for people, `table` aligns columns, `json` is for programs: one JSON document, or JSON Lines for the streaming commands (`connect`, `alarms`, `io monitor`). JSON field names are snake_case and stable: see [docs/json-output.md](docs/json-output.md). A fatal error is one `error:` line on stderr, or with `--format json` one `{"error": {"kind", "code", "message"}}` object on stdout.
+`--format text` (default) is for people, `table` aligns columns, `json` is for programs: one JSON document, or JSON Lines for the streaming commands (`connect`, `alarms`, `io monitor`, `hello listen`). JSON field names are snake_case and stable: see [docs/json-output.md](docs/json-output.md). A fatal error is one `error:` line on stderr, or with `--format json` one `{"error": {"kind", "code", "message"}}` object on stdout.
 
 | Exit code | Meaning |
 |-----------|---------|
@@ -157,7 +159,7 @@ $ sudo profinetctl -i eth0 connect -s io-rack-1 --gsdml device.xml --plug 3=0x30
 | 4 | transport: the interface cannot be opened (privileges), a socket cannot be bound |
 | 5 | timeout: the device did not answer |
 | 6 | refused or protocol error: a PNIO error status, a DCP block error, a duplicate station name, a malformed answer |
-| 7 | partial: a result was written and some of it failed (a GSDML file with issues, an I&M record that could not be read) |
+| 7 | partial: a result was written and some of it failed (a GSDML file with issues, a topology check that found differences, an I&M record that could not be read) |
 | 8 | not found: no device answers to the station name |
 | 10 | output or internal error |
 | 130 | interrupted (Ctrl-C) before a result |
@@ -177,7 +179,7 @@ Details in [docs/exitcodes.md](docs/exitcodes.md).
 
 - IO-Controller with RT_CLASS_1 and RT_CLASS_2 (advanced startup); no IRT (RT_CLASS_3), no PROFIsafe. MRP: it gives a multiport device its role (`--mrp-role`) and reads its state (`mrp status`); it is not an MRP node itself. The automatic manager (MRA) is a role of a device's own configuration (PROFINET's MRP_Role has no value for it), so `--mrp-role` cannot set it; `mrp status` shows what such a device acts as, client or manager. Shared device: it expects a subset of the modules (`--slot`); another controller owns the rest. System redundancy (S2), an experiment of go-profinet that is not interoperable, is not exposed.
 - `connect --reparam` needs a device that accepts PrmBegin in Data: go-profinet's device and profinet-py do; p-net and pnio-rs refuse it (the AR runs on, the event reports the refusal).
-- OT Fabric is not a PROFIBUS & PROFINET International member: no official XSD validation, no GSDX or MRCD, no certification. The full impact is in go-profinet's [docs/PI-MEMBERSHIP.md](https://github.com/otfabric/go-profinet/blob/main/docs/PI-MEMBERSHIP.md).
+- OT Fabric is not a PROFIBUS & PROFINET International member: no official XSD validation, no verification of GSDX signatures (`gsdml gsdx` inspects the container), no MRCD, no certification. The full impact is in go-profinet's [docs/PI-MEMBERSHIP.md](https://github.com/otfabric/go-profinet/blob/main/docs/PI-MEMBERSHIP.md).
 - `gsdml validate` checks go-profinet's catalog of the GSDML schema (structure, types, references), not the official schemas, which PROFIBUS & PROFINET International licenses to its members: it is not PI's GSDML checker.
 - `disconnect` cannot release an AR at devices that tie it to the RPC activity of its Connect (p-net); they close it after the CM activity timeout.
 - `topology` reads devices that have an IP address; switches without PROFINET (no DCP) appear only as neighbors.
@@ -192,7 +194,7 @@ make coverage   # coverage, fails below 90 %
 make check      # everything CI runs
 ```
 
-The tests run profinetctl in process against go-profinet IO-Devices on a virtual Ethernet network, so they need neither privileges nor hardware. `make pnet-smoke` runs every command family against an independent implementation, rt-labs p-net in Docker (the images of [profinet-interop](https://github.com/otfabric/profinet-interop)), on a real Linux bridge. See [CONTRIBUTING.md](CONTRIBUTING.md).
+The tests run profinetctl in process against go-profinet IO-Devices on a virtual Ethernet network, so they need neither privileges nor hardware. `make pnet-smoke` runs the DCP, record, I&M, diagnosis, topology and AR commands against an independent implementation, rt-labs p-net in Docker (the images of [profinet-interop](https://github.com/otfabric/profinet-interop)), on a real Linux bridge. See [CONTRIBUTING.md](CONTRIBUTING.md).
 
 ## License
 

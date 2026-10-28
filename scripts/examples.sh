@@ -127,12 +127,16 @@ ex im read -s pnet-dut --record 1
 section "LLDP and topology" ""
 ex lldp neighbors --wait 6s
 ex topology --wait 2s
+ex topology check --link otf-a/port-001=otf-b/port-001
 
 section "GSDML" "otf-device.xml is the GSDML file otf-a writes for itself."
 ex gsdml inspect otf-device.xml
 ex gsdml validate otf-device.xml
 ex gsdml modules otf-device.xml
 ex gsdml submodules otf-device.xml --module 0x20
+ex gsdml check otf-device.xml
+ex gsdml generate --model pnet-model.json -O pnet-generated.xml
+ex gsdml check pnet-generated.xml
 
 section "Application relationships and cyclic data" "profinetctl acts as IO-Controller with the expected configuration of the device."
 ex ar -s pnet-dut --model pnet-model.json --reduction-ratio 8
@@ -142,6 +146,9 @@ ex io monitor -s otf-a --gsdml otf-device.xml --plug 3=0x30 --interval 500ms --d
 ex io statistics -s pnet-dut --model pnet-model.json --duration 3s
 ex connect -s otf-a --gsdml otf-device.xml --plug 3=0x30 --output 2:1:a1b2c3d4 --duration 4s
 ex connect -s pnet-dut --model pnet-model.json --duration 1s -o json
+ex alarms -s otf-a --gsdml otf-device.xml --plug 3=0x30 --duration 4s
+ex connect -s otf-a --gsdml otf-device.xml --plug 3=0x30 --reparam 2:1:0x10:0007 --duration 3s
+ex record read -s otf-a --slot 2 --index 0x10
 
 section "Errors and exit codes" "Exit codes are stable (see exitcodes.md); with \`-o json\` the error is a JSON object on stdout."
 ex identify -s nobody --wait 500ms

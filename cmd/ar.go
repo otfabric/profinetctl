@@ -307,7 +307,7 @@ func (e arEvent) MarshalTextOutput() (string, error) {
 		}
 		return s + "\n", nil
 	default:
-		return fmt.Sprintf("%s %s %s\n", e.Time, e.Event, e.Error), nil
+		return strings.TrimRight(fmt.Sprintf("%s %s %s", e.Time, e.Event, e.Error), " ") + "\n", nil
 	}
 }
 

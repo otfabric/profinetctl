@@ -11,6 +11,7 @@ import (
 	"testing"
 	"time"
 
+	"github.com/otfabric/go-profinet/controller"
 	"github.com/otfabric/go-profinet/dcp"
 	"github.com/otfabric/go-profinet/device"
 	"github.com/otfabric/go-profinet/model"
@@ -107,8 +108,18 @@ func TestTopologyCheck(t *testing.T) {
 	}
 	file := writeFile(t, "links.json", []byte(`[{"a":{"station":"dev-a","port":"port-001"},"b":{"station":"dev-b","port":"port-001"}}]`))
 	out, _, _ = n.run("-i", "pn0", "topology", "check", "--expect", file)
-	if !strings.Contains(out, "dev-a") || !strings.Contains(out, "topology") {
+	if !strings.Contains(out, "dev-a/port-001 — dev-b/port-001: ") || !strings.Contains(out, "topology ") || strings.Contains(out, "{") {
 		t.Fatalf("text:\n%s", out)
+	}
+	// Every part of a report in text.
+	txt, _ := topoCheckResult{Report: controller.TopologyReport{
+		Links:       []controller.LinkResult{{Link: controller.Link{A: controller.PortRef{Station: "a", Port: "port-001"}, B: controller.PortRef{Station: "b", Port: "port-002"}}, Verdict: "wrong peer", Detail: "a sees c/port-001"}},
+		Unexpected:  []controller.Link{{A: controller.PortRef{Station: "a", Port: "port-002"}, B: controller.PortRef{Station: "c", Port: "port-001"}}},
+		Unreachable: map[string]string{"z": "timeout", "y": "no IP"},
+	}}.MarshalTextOutput()
+	want := "a/port-001 — b/port-002: wrong peer (a sees c/port-001)\na/port-002 — c/port-001: unexpected\ny: unreachable (no IP)\nz: unreachable (timeout)\ntopology differs\n"
+	if txt != want {
+		t.Fatalf("text %q, want %q", txt, want)
 	}
 	n.fails(2, "invalid_input", "-i", "pn0", "topology", "check")
 	n.fails(3, "invalid_input", "-i", "pn0", "topology", "check", "--link", "dev-a=dev-b")

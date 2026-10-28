@@ -10,7 +10,7 @@
 | 4 | Transport (`transport`): the interface cannot be opened (missing privileges: `permission_denied`), a socket cannot be bound or fails |
 | 5 | Timeout (`timeout`): the device did not answer a DCP request or an RPC call in time (`--timeout`), or an AR did not reach Running within `--connect-timeout` |
 | 6 | Refused or protocol error (`refused`, `protocol`): the device answered with a PNIO error status, refused a DCP Set with a block error, rejected the Connect, or answered with a malformed frame; more than one device answers to the station name; a device has no IP address for RPC |
-| 7 | Partial success: a **valid** result was written to stdout, and some of it failed: `gsdml validate` found issues, an I&M record or part of `device info`, `status` or `topology` could not be read |
+| 7 | Partial success: a **valid** result was written to stdout, and some of it failed: `gsdml validate` found issues, `gsdml check` found errors (with `--strict` any issue), `gsdml gsdx` found container issues or GSDML errors, `topology check` found differences, an I&M record or part of `device info`, `status` or `topology` could not be read |
 | 8 | Not found (`not_found`): no device answers to the station name (DCP Identify) |
 | 10 | Output or internal (`output`, `internal`): the result could not be written, or something unexpected happened |
 | 130 | Interrupted (`interrupted`): Ctrl-C or SIGTERM before a one-shot command had its result |
@@ -32,7 +32,7 @@
 
 **Partial exit:** only after a success payload was written. A failure to open the interface, to resolve the device or to write is fatal and uses the codes above, never `7`.
 
-**Streaming commands:** `connect`, `alarms` and `io monitor` write one record at a time. `--duration` or Ctrl-C (SIGINT) and SIGTERM end the stream normally with exit code 0: the AR is released, and `connect` writes its summary. A failure before the AR runs is fatal.
+**Streaming commands:** `connect`, `alarms`, `io monitor` and `hello listen` write one record at a time. `--duration` or Ctrl-C (SIGINT) and SIGTERM end the stream normally with exit code 0: the AR is released, and `connect` writes its summary. A failure before the AR runs is fatal.
 
 **Commands that change a device:** `name set`, `ip set`, `signal`, `reset`, `record write`, `im write`, `disconnect` and the commands that establish an AR validate their flags before sending; a rejected invocation exits `2` or `3` and has sent nothing. A refusal by the device exits `6`, a missing answer `5`; after a timeout a Set may or may not have been applied.
 
