@@ -23,6 +23,35 @@ ending with a `---` line and no `---` line inside a section
 
 ---
 
+## v0.6.0
+
+**Date:** 2026-10-29
+**Previous release:** v0.3.2
+
+## Summary
+
+Built on go-profinet v0.6.0 and released together with it and
+profinet-interop v0.6.0: from this version the three share one version
+number (there is no v0.4.x or v0.5.x of profinetctl). The examples cover
+every command.
+
+## Changes
+
+- go-profinet v0.6.0: PNIO error statuses of CMRPC name their cause ("AR
+  UUID unknown", "state conflict", …) in error messages, for example a
+  `disconnect` of an AR the device does not know.
+- `mrp status` of a device without media redundancy (its read answers
+  "invalid index") fails as `unsupported` (exit 6) with a clear message
+  instead of the raw PNIO status.
+- `make examples-doc` also shows `hello listen` while a device starts,
+  `alarms` with the diagnosis that follows, `mrp status` and
+  `disconnect`; docs/EXAMPLES.md on main is regenerated from this
+  release's binary.
+- SECURITY.md: 0.6.x supported; docs/exitcodes.md and
+  docs/json-output.md name the `mrp status` case.
+
+---
+
 ## v0.3.2
 
 **Date:** 2026-10-28
