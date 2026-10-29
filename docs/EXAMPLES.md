@@ -2,7 +2,7 @@
 
 # profinetctl by example
 
-Real output, generated on 2026-10-28 by `make examples-doc`: profinetctl in a Linux container
+Real output, generated on 2026-10-29 by `make examples-doc`: profinetctl in a Linux container
 on a Docker bridge network with three IO-Devices: **pnet-dut**, rt-labs
 p-net's sample application (an independent implementation), and **otf-a**
 and **otf-b**, go-profinet IO-Devices. The interface is set with
@@ -20,9 +20,9 @@ eth0  02:42:0a:8f:05:03  mtu 1500  up  10.143.5.3/24
 
 ```console
 $ profinetctl discover --wait 2s
-82:08:ec:24:d3:d1  otf-b                    vendor 0xF000 device 0x0101  10.143.5.21  go-profinet interop device
-be:26:84:da:a6:cc  pnet-dut                 vendor 0x0493 device 0x0002  10.143.5.10  P-Net Sample Application
-f6:f3:92:e6:a6:ec  otf-a                    vendor 0xF000 device 0x0101  10.143.5.20  go-profinet interop device
+ce:48:e6:dc:9f:d5  otf-a                    vendor 0xF000 device 0x0101  10.143.5.20  go-profinet interop device
+e2:d7:d0:a5:23:0e  otf-b                    vendor 0xF000 device 0x0101  10.143.5.21  go-profinet interop device
+fe:12:d3:70:32:0a  pnet-dut                 vendor 0x0493 device 0x0002  10.143.5.10  P-Net Sample Application
 3 device(s)
 ```
 
@@ -30,9 +30,9 @@ f6:f3:92:e6:a6:ec  otf-a                    vendor 0xF000 device 0x0101  10.143.
 $ profinetctl discover --wait 2s -o table
 MAC                STATION   VENDOR  DEVICE  IP           TYPE                        ROLE
 -                  -         -       -       -            -                           -
-82:08:ec:24:d3:d1  otf-b     0xF000  0x0101  10.143.5.21  go-profinet interop device  IO-Device
-be:26:84:da:a6:cc  pnet-dut  0x0493  0x0002  10.143.5.10  P-Net Sample Application    IO-Device
-f6:f3:92:e6:a6:ec  otf-a     0xF000  0x0101  10.143.5.20  go-profinet interop device  IO-Device
+ce:48:e6:dc:9f:d5  otf-a     0xF000  0x0101  10.143.5.20  go-profinet interop device  IO-Device
+e2:d7:d0:a5:23:0e  otf-b     0xF000  0x0101  10.143.5.21  go-profinet interop device  IO-Device
+fe:12:d3:70:32:0a  pnet-dut  0x0493  0x0002  10.143.5.10  P-Net Sample Application    IO-Device
 ```
 
 ```console
@@ -40,7 +40,7 @@ $ profinetctl discover --wait 1s --station otf-b -o json
 {
   "devices": [
     {
-      "mac": "82:08:ec:24:d3:d1",
+      "mac": "e2:d7:d0:a5:23:0e",
       "name_of_station": "otf-b",
       "type_of_station": "go-profinet interop device",
       "vendor_id": 61440,
@@ -74,7 +74,7 @@ $ profinetctl discover --wait 1s --station otf-b -o json
 
 ```console
 $ profinetctl identify -s pnet-dut
-MAC:              be:26:84:da:a6:cc
+MAC:              fe:12:d3:70:32:0a
 NameOfStation:    pnet-dut
 TypeOfStation:    P-Net Sample Application
 Vendor/Device ID: 0x0493 / 0x0002
@@ -95,12 +95,12 @@ pnet-dut
 
 ```console
 $ profinetctl name set pnet-renamed -s pnet-dut
-name set: be:26:84:da:a6:cc pnet-dut → pnet-renamed (temporary: lost on power cycle)
+name set: fe:12:d3:70:32:0a pnet-dut → pnet-renamed (temporary: lost on power cycle)
 ```
 
 ```console
 $ profinetctl name set pnet-dut -s pnet-renamed
-name set: be:26:84:da:a6:cc pnet-renamed → pnet-dut (temporary: lost on power cycle)
+name set: fe:12:d3:70:32:0a pnet-renamed → pnet-dut (temporary: lost on power cycle)
 ```
 
 ```console
@@ -110,7 +110,7 @@ $ profinetctl ip get -s otf-b
 
 ```console
 $ profinetctl ip set 10.143.5.22/24 -s otf-b
-ip set: 82:08:ec:24:d3:d1 otf-b → 10.143.5.22/24 (temporary: lost on power cycle)
+ip set: e2:d7:d0:a5:23:0e otf-b → 10.143.5.22/24 (temporary: lost on power cycle)
 ```
 
 ```console
@@ -120,12 +120,12 @@ $ profinetctl ip get -s otf-b
 
 ```console
 $ profinetctl ip set 10.143.5.21/24 -s otf-b
-ip set: 82:08:ec:24:d3:d1 otf-b → 10.143.5.21/24 (temporary: lost on power cycle)
+ip set: e2:d7:d0:a5:23:0e otf-b → 10.143.5.21/24 (temporary: lost on power cycle)
 ```
 
 ```console
 $ profinetctl signal -s pnet-dut
-signal: be:26:84:da:a6:cc pnet-dut
+signal: fe:12:d3:70:32:0a pnet-dut
 ```
 
 ## Identification, records and diagnosis
@@ -134,7 +134,7 @@ Reads use ReadImplicit: no AR is needed.
 
 ```console
 $ profinetctl device info -s pnet-dut
-MAC:              be:26:84:da:a6:cc
+MAC:              fe:12:d3:70:32:0a
 NameOfStation:    pnet-dut
 TypeOfStation:    P-Net Sample Application
 Vendor/Device ID: 0x0493 / 0x0002
@@ -154,7 +154,7 @@ Real configuration:
 
 ```console
 $ profinetctl im read -s pnet-dut
-pnet-dut (be:26:84:da:a6:cc) slot 0 subslot 0x0001
+pnet-dut (fe:12:d3:70:32:0a) slot 0 subslot 0x0001
 I&M0: vendor 0x0493, order "12345 Abcdefghijk", serial "007", hardware 3, software V0.2.0, revision counter 0, profile 0x1234/0x5678, I&M 1.1, supports I&M1, I&M2, I&M3
 I&M1: function "my function", location "my location"
 I&M2: installation date "2022-03-01 10:03"
@@ -194,7 +194,7 @@ pnet-dut: no diagnosis
 
 ```console
 $ profinetctl status -s otf-a
-otf-a (f6:f3:92:e6:a6:ec) 10.143.5.20
+otf-a (ce:48:e6:dc:9f:d5) 10.143.5.20
 DCP: ok  RPC: ok
 Diagnosis: none
 Port 0x8001 port-001: link up, peer pnet-dut port-001, pnet-renamed port-001, otf-b port-001
@@ -206,7 +206,7 @@ go-profinet devices accept a device access AR (IOSAR) for writes; p-net does not
 
 ```console
 $ profinetctl record write -s otf-a --slot 2 --index 0x10 --data 0005
-record write: f6:f3:92:e6:a6:ec otf-a → 0/2/0x0001 index 0x0010: 2 octets
+record write: ce:48:e6:dc:9f:d5 otf-a → 0/2/0x0001 index 0x0010: 2 octets
 ```
 
 ```console
@@ -223,18 +223,29 @@ error: device access AR (Connect): pnio: connect: DB 81 01 04 (connect: faulty A
 
 ```console
 $ profinetctl record write -s pnet-dut --slot 1 --index 123 --data 01020304 --model pnet-model.json
-record write: be:26:84:da:a6:cc pnet-dut → 0/1/0x0001 index 0x007B: 4 octets
+record write: fe:12:d3:70:32:0a pnet-dut → 0/1/0x0001 index 0x007B: 4 octets
 ```
 
 ```console
 $ profinetctl im write -s pnet-dut --location 'bench 2' --model pnet-model.json
-im write: be:26:84:da:a6:cc pnet-dut → I&M1
+im write: fe:12:d3:70:32:0a pnet-dut → I&M1
 ```
 
 ```console
 $ profinetctl im read -s pnet-dut --record 1
-pnet-dut (be:26:84:da:a6:cc) slot 0 subslot 0x0001
+pnet-dut (fe:12:d3:70:32:0a) slot 0 subslot 0x0001
 I&M1: function "my function", location "bench 2"
+```
+
+## DCP Hello
+
+`hello listen` shows the Hello a device sends when it starts (Fast Startup); otf-c is started while it listens.
+
+```console
+$ profinetctl hello listen --duration 5s
+02:00:47.639 hello 92:b8:c4:f8:8a:3c otf-c 10.143.5.23/255.255.255.0
+02:00:47.669 hello 92:b8:c4:f8:8a:3c otf-c 10.143.5.23/255.255.255.0
+02:00:47.700 hello 92:b8:c4:f8:8a:3c otf-c 10.143.5.23/255.255.255.0
 ```
 
 ## LLDP and topology
@@ -243,24 +254,30 @@ I&M1: function "my function", location "bench 2"
 
 ```console
 $ profinetctl lldp neighbors --wait 6s
-82:08:ec:24:d3:d1  chassis "otf-b" port "port-001.otf-b" ttl 20s  go-profinet interop device  10.143.5.21
-be:26:84:da:a6:cc  chassis "P-Net Sample Application  12345 Abcdefghijk    007                  3 V  0  2  0" port "port-001.pnet-dut" ttl 20s  10.143.5.10
-f6:f3:92:e6:a6:ec  chassis "otf-a" port "port-001.otf-a" ttl 20s  go-profinet interop device  10.143.5.20
-3 neighbor(s) on eth0
+92:b8:c4:f8:8a:3c  chassis "otf-c" port "port-001.otf-c" ttl 20s  go-profinet interop device  10.143.5.23
+ce:48:e6:dc:9f:d5  chassis "otf-a" port "port-001.otf-a" ttl 20s  go-profinet interop device  10.143.5.20
+e2:d7:d0:a5:23:0e  chassis "otf-b" port "port-001.otf-b" ttl 20s  go-profinet interop device  10.143.5.21
+fe:12:d3:70:32:0a  chassis "P-Net Sample Application  12345 Abcdefghijk    007                  3 V  0  2  0" port "port-001.pnet-dut" ttl 20s  10.143.5.10
+4 neighbor(s) on eth0
 ```
 
 ```console
 $ profinetctl topology --wait 2s
-otf-a (f6:f3:92:e6:a6:ec, 10.143.5.20)
-  port-001   link up    ── pnet-dut port-001, otf-b port-001
-otf-b (82:08:ec:24:d3:d1, 10.143.5.21)
-  port-001   link up    ── pnet-dut port-001, otf-a port-001
-pnet-dut (be:26:84:da:a6:cc, 10.143.5.10)
+otf-a (ce:48:e6:dc:9f:d5, 10.143.5.20)
+  port-001   link up    ── pnet-dut port-001, otf-b port-001, otf-c port-001
+otf-b (e2:d7:d0:a5:23:0e, 10.143.5.21)
+  port-001   link up    ── pnet-dut port-001, otf-a port-001, otf-c port-001
+otf-c (92:b8:c4:f8:8a:3c, 10.143.5.23)
+  port-001   link up    ── pnet-dut port-001, otf-a port-001, otf-b port-001
+pnet-dut (fe:12:d3:70:32:0a, 10.143.5.10)
   port-001   link up    ── pnet-dut port-001
 Links:
   otf-a port-001 ── pnet-dut port-001
   otf-a port-001 ── otf-b port-001
+  otf-a port-001 ── otf-c port-001
   otf-b port-001 ── pnet-dut port-001
+  otf-b port-001 ── otf-c port-001
+  otf-c port-001 ── pnet-dut port-001
 ```
 
 ```console
@@ -327,8 +344,8 @@ profinetctl acts as IO-Controller with the expected configuration of the device.
 
 ```console
 $ profinetctl ar -s pnet-dut --model pnet-model.json --reduction-ratio 8
-Device:      pnet-dut (be:26:84:da:a6:cc, 10.143.5.10)
-AR:          5ca39935-8ff8-442f-a826-f2ae7a2c2b3c, type IOCARSingle, session key 1
+Device:      pnet-dut (fe:12:d3:70:32:0a, 10.143.5.10)
+AR:          10f0bcfc-c1d2-46d8-8d62-e38e98b8ac6d, type IOCARSingle, session key 1
 Startup:     legacy, RT class 1
 Alarm refs:  local 1, remote 1
 Input CR:    FrameID 0xC000, 40 octets, cycle 8ms (send clock 32 × reduction 8), watchdog 10, data hold 10
@@ -369,72 +386,102 @@ output slot 2 subslot 0x0001: IOCS good
 
 ```console
 $ profinetctl io monitor -s otf-a --gsdml otf-device.xml --plug 3=0x30 --interval 500ms --duration 2s
-15:27:29.579 state Offline → Resolving
-15:27:29.580 state Resolving → Connecting
-15:27:29.585 state Connecting → Parameterizing
-15:27:29.586 state Parameterizing → WaitApplicationReady
-15:27:29.586 state WaitApplicationReady → Running
-15:27:30.087 0/0x0001=- 0/0x8000=- 0/0x8001=- 1/0x0001=5152535455565758 3/0x0001=5152
-15:27:30.587 0/0x0001=- 0/0x8000=- 0/0x8001=- 1/0x0001=565758595a5b5c5d 3/0x0001=5657
-15:27:31.087 0/0x0001=- 0/0x8000=- 0/0x8001=- 1/0x0001=5b5c5d5e5f606162 3/0x0001=5b5c
-15:27:31.588 0/0x0001=- 0/0x8000=- 0/0x8001=- 1/0x0001=6061626364656667 3/0x0001=6061
+02:01:08.903 state Offline → Resolving
+02:01:08.904 state Resolving → Connecting
+02:01:08.909 state Connecting → Parameterizing
+02:01:08.910 state Parameterizing → WaitApplicationReady
+02:01:08.910 state WaitApplicationReady → Running
+02:01:09.410 0/0x0001=- 0/0x8000=- 0/0x8001=- 1/0x0001=8485868788898a8b 3/0x0001=8485
+02:01:09.911 0/0x0001=- 0/0x8000=- 0/0x8001=- 1/0x0001=898a8b8c8d8e8f90 3/0x0001=898a
+02:01:10.411 0/0x0001=- 0/0x8000=- 0/0x8001=- 1/0x0001=8e8f909192939495 3/0x0001=8e8f
+02:01:10.910 0/0x0001=- 0/0x8000=- 0/0x8001=- 1/0x0001=939495969798999a 3/0x0001=9394
 ```
 
 ```console
 $ profinetctl io statistics -s pnet-dut --model pnet-model.json --duration 3s
 pnet-dut: Running for 3.001s, cycle 4ms
-provider:  747 frames sent, 0 send errors
-consumer:  750 frames received (249.9/s), 0 stale, 0 malformed, 0 from another source, 0 watchdog expiries
-scheduler: 747 cycles, 3 missed, lateness max 2.292751ms mean 540.361µs, interval 2.00225ms..11.915541ms
+provider:  742 frames sent, 0 send errors
+consumer:  749 frames received (249.6/s), 0 stale, 0 malformed, 0 from another source, 0 watchdog expiries
+scheduler: 742 cycles, 8 missed, lateness max 3.366292ms mean 636.279µs, interval 1.214542ms..16.960541ms
 AR:        1 connect(s), 0 abort(s), 0 alarm(s)
 ```
 
 ```console
 $ profinetctl connect -s otf-a --gsdml otf-device.xml --plug 3=0x30 --output 2:1:a1b2c3d4 --duration 4s
-15:27:37.128 state Offline → Resolving
-15:27:37.128 state Resolving → Connecting
-15:27:37.132 state Connecting → Parameterizing
-15:27:37.134 state Parameterizing → WaitApplicationReady
-15:27:37.134 state WaitApplicationReady → Running
-15:27:39.166 alarm Diagnosis (low) slot 1 subslot 0x0001 seq 0; channel 0x0001 line break fault
-15:27:41.134 summary: state Running, 1 connect(s), 0 abort(s), 1 alarm(s), 998 frames sent, 1000 received, 0 watchdog expiries
+02:01:16.448 state Offline → Resolving
+02:01:16.449 state Resolving → Connecting
+02:01:16.453 state Connecting → Parameterizing
+02:01:16.454 state Parameterizing → WaitApplicationReady
+02:01:16.454 state WaitApplicationReady → Running
+02:01:18.622 alarm Diagnosis (low) slot 1 subslot 0x0001 seq 0; channel 0x0001 line break fault
+02:01:20.455 summary: state Running, 1 connect(s), 0 abort(s), 1 alarm(s), 998 frames sent, 999 received, 0 watchdog expiries
   input slot 0 subslot 0x0001: - IOPS good
   input slot 0 subslot 0x8000: - IOPS good
   input slot 0 subslot 0x8001: - IOPS good
-  input slot 1 subslot 0x0001: bfc0c1c2c3c4c5c6 IOPS good
-  input slot 3 subslot 0x0001: bfc0 IOPS good
+  input slot 1 subslot 0x0001: f3f4f5f6f7f8f9fa IOPS good
+  input slot 3 subslot 0x0001: f3f4 IOPS good
 ```
 
 ```console
 $ profinetctl connect -s pnet-dut --model pnet-model.json --duration 1s -o json
-{"time":"15:27:42.391","event":"state","from":"Offline","to":"Resolving"}
-{"time":"15:27:42.393","event":"state","from":"Resolving","to":"Connecting"}
-{"time":"15:27:42.394","event":"state","from":"Connecting","to":"Parameterizing"}
-{"time":"15:27:42.395","event":"state","from":"Parameterizing","to":"WaitApplicationReady"}
-{"time":"15:27:42.395","event":"state","from":"WaitApplicationReady","to":"Running"}
-{"time":"15:27:43.396","event":"summary","state":"Running","stats":{"connects":1,"aborts":0,"alarms":0,"frames_sent":249,"send_errors":0,"frames_received":250,"frames_stale":0,"frames_malformed":0,"frames_wrong_source":0,"watchdog_expiries":0,"cycles":249,"missed_cycles":1,"max_lateness":"3.044834ms","mean_lateness":"633.799µs","min_interval":"1.658917ms","max_interval":"7.421959ms"},"inputs":[{"slot":0,"subslot":1,"data":"","iops":"good"},{"slot":0,"subslot":32768,"data":"","iops":"good"},{"slot":0,"subslot":32769,"data":"","iops":"good"},{"slot":1,"subslot":1,"data":"36","iops":"good"},{"slot":2,"subslot":1,"data":"0000000000000000","iops":"good"}]}
+{"time":"02:01:21.705","event":"state","from":"Offline","to":"Resolving"}
+{"time":"02:01:21.708","event":"state","from":"Resolving","to":"Connecting"}
+{"time":"02:01:21.709","event":"state","from":"Connecting","to":"Parameterizing"}
+{"time":"02:01:21.710","event":"state","from":"Parameterizing","to":"WaitApplicationReady"}
+{"time":"02:01:21.710","event":"state","from":"WaitApplicationReady","to":"Running"}
+{"time":"02:01:22.711","event":"summary","state":"Running","stats":{"connects":1,"aborts":0,"alarms":0,"frames_sent":248,"send_errors":0,"frames_received":250,"frames_stale":0,"frames_malformed":0,"frames_wrong_source":0,"watchdog_expiries":0,"cycles":248,"missed_cycles":2,"max_lateness":"2.814084ms","mean_lateness":"586.181µs","min_interval":"1.490792ms","max_interval":"9.924375ms"},"inputs":[{"slot":0,"subslot":1,"data":"","iops":"good"},{"slot":0,"subslot":32768,"data":"","iops":"good"},{"slot":0,"subslot":32769,"data":"","iops":"good"},{"slot":1,"subslot":1,"data":"35","iops":"good"},{"slot":2,"subslot":1,"data":"0000000000000000","iops":"good"}]}
 ```
 
 ```console
 $ profinetctl connect -s otf-a --gsdml otf-device.xml --plug 3=0x30 --reparam 2:1:0x10:0007 --duration 3s
-15:27:44.661 state Offline → Resolving
-15:27:44.662 state Resolving → Connecting
-15:27:44.667 state Connecting → Parameterizing
-15:27:44.668 state Parameterizing → WaitApplicationReady
-15:27:44.668 state WaitApplicationReady → Running
-15:27:45.670 reparameterized
-15:27:47.669 summary: state Running, 1 connect(s), 0 abort(s), 0 alarm(s), 750 frames sent, 750 received, 0 watchdog expiries
+02:01:23.968 state Offline → Resolving
+02:01:23.970 state Resolving → Connecting
+02:01:23.975 state Connecting → Parameterizing
+02:01:23.976 state Parameterizing → WaitApplicationReady
+02:01:23.976 state WaitApplicationReady → Running
+02:01:24.977 reparameterized
+02:01:26.977 summary: state Running, 1 connect(s), 0 abort(s), 0 alarm(s), 750 frames sent, 750 received, 0 watchdog expiries
   input slot 0 subslot 0x0001: - IOPS good
   input slot 0 subslot 0x8000: - IOPS good
   input slot 0 subslot 0x8001: - IOPS good
-  input slot 1 subslot 0x0001: 0001020304050607 IOPS good
-  input slot 3 subslot 0x0001: 0001 IOPS good
+  input slot 1 subslot 0x0001: 3435363738393a3b IOPS good
+  input slot 3 subslot 0x0001: 3435 IOPS good
 ```
 
 ```console
 $ profinetctl record read -s otf-a --slot 2 --index 0x10
 otf-a slot 2 subslot 0x0001 index 0x0010: 2 octets
 0000  00 07
+```
+
+## Alarms
+
+otf-b raises a diagnosis two seconds after its AR reaches Data; profinetctl acknowledges it and shows it.
+
+```console
+$ profinetctl alarms -s otf-b --gsdml otf-device.xml --plug 3=0x30 --duration 5s
+02:01:31.549 alarm Diagnosis (low) slot 1 subslot 0x0001 seq 0; channel 0x0001 line break fault
+```
+
+```console
+$ profinetctl diagnostics -s otf-b
+slot 1 subslot 0x0001 channel 0x0001 input: line break (0x0006), fault
+```
+
+## Media redundancy and releasing a stale AR
+
+`mrp status` reads the MRP records of a device (a single-port device has none). `disconnect` releases an AR another controller left behind, by its AR UUID and session key.
+
+```console
+$ profinetctl mrp status -s otf-a
+error: the device has no media redundancy (no PDInterfaceMrpDataReal record)
+[exit code 6]
+```
+
+```console
+$ profinetctl disconnect -s otf-b --ar 01020304-0506-0708-090a-0b0c0d0e0f10 --session-key 1
+error: Release: pnio: ReleaseBlockReq: DC 81 40 05 (release: CMRPC: AR UUID unknown)
+[exit code 6]
 ```
 
 ## Errors and exit codes
@@ -467,23 +514,21 @@ error: reset erases the device's configuration: repeat its station name or MAC a
 
 ```console
 $ profinetctl reset -s otf-b --confirm otf-a
-error: --confirm "otf-a" names neither the station name "otf-b" nor the MAC address 82:08:ec:24:d3:d1 of the target
+error: --confirm "otf-a" names neither the station name "otf-b" nor the MAC address e2:d7:d0:a5:23:0e of the target
 [exit code 2]
 ```
 
 ```console
 $ profinetctl reset -s otf-b --mode communication --confirm otf-b
-reset: 82:08:ec:24:d3:d1 otf-b → communication
+reset: e2:d7:d0:a5:23:0e otf-b → communication
 ```
 
 ```console
 $ profinetctl version
-profinetctl version: 0.3.2
-tag:         v0.3.2
-commit:      a6dd570d930c80cb8ca3d402b80e1105ab597bfa
-build date:  2026-10-28T15:22:42Z
-go-profinet: v0.5.0
-go version:  go1.25.0
+profinetctl version: v0.6.0
+commit:      2e52e76
+go-profinet: v0.6.0
+go version:  go1.27.3
 platform:    linux/arm64
 ```
 
