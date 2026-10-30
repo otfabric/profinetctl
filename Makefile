@@ -1,4 +1,4 @@
-.PHONY: help all run test coverage cover compile cross lint lint-ci fmt fmt-check vet vuln build build-nocheck build-all release-all install clean pnet-smoke examples-doc release-notes-check
+.PHONY: help all run test coverage cover compile cross lint lint-ci fmt fmt-check vet vuln build build-nocheck build-all release-all install clean pnet-smoke examples-doc release-notes-check e2e
 
 help: ## This help
 	@awk 'BEGIN {FS = ":.*?## "} /^[a-zA-Z0-9_-]+:.*?## / {printf "\033[36m%-30s\033[0m %s\n", $$1, $$2}' $(MAKEFILE_LIST)
@@ -155,6 +155,11 @@ examples-doc: ## Regenerate docs/EXAMPLES.md: real output against p-net and go-p
 
 pnet-smoke: ## Run profinetctl against p-net in Docker (needs profinet-interop's images: make images there)
 	@scripts/pnet-smoke.sh
+
+e2e: ## Build the binary and run the e2e suite against it
+	@mkdir -p bin
+	@go build $(LDFLAGS) -o bin/profinetctl $(APP_SRC)
+	@PROFINETCTL_E2E_BIN=$(CURDIR)/bin/profinetctl PROFINETCTL_E2E_VERSION=$(VERSION) go test -count=1 -tags=e2e ./e2e/...
 
 install: build ## Install the built binary to /usr/local/bin
 	@echo "Installing $(APP_NAME) to /usr/local/bin"
