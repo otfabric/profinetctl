@@ -131,7 +131,7 @@ func (a *app) openLink() (*Link, error) {
 func openError(iface, backend string, err error) error {
 	msg := fmt.Sprintf("cannot open interface %q (%s): %v", iface, backend, err)
 	if errors.Is(err, os.ErrPermission) || errors.Is(err, syscall.EPERM) || errors.Is(err, syscall.EACCES) {
-		return errs.New(errs.KindTransport, errs.CodePermissionDenied, msg+": raw Ethernet access needs root, CAP_NET_RAW (Linux), access to /dev/bpf* (macOS) or Npcap (Windows)", err)
+		return errs.New(errs.KindPermission, errs.CodePermissionDenied, msg+": raw Ethernet access needs root, CAP_NET_RAW (Linux), access to /dev/bpf* (macOS) or Npcap (Windows)", err)
 	}
 	if errors.Is(err, profinet.ErrNotFound) {
 		return errs.New(errs.KindInvalidInput, errs.CodeInterfaceOpenFailed, msg, err)

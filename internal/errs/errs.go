@@ -15,8 +15,8 @@ type Kind string
 const (
 	KindUsage        Kind = "usage"
 	KindInvalidInput Kind = "invalid_input"
-	// KindTransport is a failure of the host: the interface cannot be opened (missing
-	// privileges, no such interface), a socket cannot be bound.
+	// KindTransport is a failure of the host: the interface cannot be opened, a socket
+	// cannot be bound.
 	KindTransport Kind = "transport"
 	KindTimeout   Kind = "timeout"
 	// KindProtocol is a peer that answered with something malformed.
@@ -26,7 +26,11 @@ const (
 	KindRefused Kind = "refused"
 	// KindNotFound is a device that did not answer DCP: no device has the station
 	// name or MAC address.
-	KindNotFound    Kind = "not_found"
+	KindNotFound Kind = "not_found"
+	// KindUnsupported is an operation the device does not support.
+	KindUnsupported Kind = "unsupported"
+	// KindPermission is a host that denies raw Ethernet access.
+	KindPermission  Kind = "permission"
 	KindInterrupted Kind = "interrupted"
 	KindOutput      Kind = "output"
 	KindInternal    Kind = "internal"
@@ -41,8 +45,10 @@ const (
 	ExitTimeout      = 5
 	ExitProtocol     = 6
 	ExitPartial      = 7
-	ExitNotFound     = 8
+	ExitUnsupported  = 8
+	ExitPermission   = 9
 	ExitInternal     = 10
+	ExitNotFound     = 11
 	ExitInterrupted  = 130
 )
 
@@ -61,6 +67,10 @@ func ExitCodeForKind(k Kind) int {
 		return ExitProtocol
 	case KindNotFound:
 		return ExitNotFound
+	case KindUnsupported:
+		return ExitUnsupported
+	case KindPermission:
+		return ExitPermission
 	case KindInterrupted:
 		return ExitInterrupted
 	case KindOutput, KindInternal:

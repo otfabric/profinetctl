@@ -23,6 +23,31 @@ ending with a `---` line and no `---` line inside a section
 
 ---
 
+## v0.7.0
+
+**Date:** unreleased
+**Previous release:** v0.6.0
+
+### Summary
+
+**Breaking for scripts:** the exit codes follow the OT Fabric organisation table (ADR-0006 of otfabric/engineering). Nothing else changes in the commands.
+
+### Exit codes
+
+| Case | Old | New | JSON error |
+|---|---|---|---|
+| `permission_denied` | 4 | 9 | kind `permission`, was `transport` |
+| `unsupported` | 6 | 8 | kind `unsupported`, was `refused` |
+| `device_not_found` and other `not_found` errors | 8 | 11 | the kind is unchanged |
+
+Every other exit code is unchanged. See [docs/exitcodes.md](docs/exitcodes.md).
+
+### Environment
+
+`PROFINETCTL_FORMAT` is now the canonical name of the format variable; `PROFINETCTL_OUTPUT_FORMAT` stays accepted, and `PROFINETCTL_FORMAT` wins when both are set.
+
+---
+
 ## v0.6.0
 
 **Date:** 2026-10-29

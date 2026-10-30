@@ -40,7 +40,10 @@ func SetBuildMeta(version, tag, commit, buildDate string) {
 const (
 	EnvInterface = "PROFINETCTL_INTERFACE"
 	EnvFormat    = "PROFINETCTL_FORMAT"
-	EnvTimeout   = "PROFINETCTL_TIMEOUT"
+	// EnvOutputFormat is the older spelling of EnvFormat, which stays accepted
+	// (ADR-0006 of otfabric/engineering). EnvFormat wins when both are set.
+	EnvOutputFormat = "PROFINETCTL_OUTPUT_FORMAT"
+	EnvTimeout      = "PROFINETCTL_TIMEOUT"
 )
 
 // app is the state of one invocation: the global flags and the backend.
@@ -89,7 +92,7 @@ Raw Ethernet access needs privileges: root or CAP_NET_RAW on Linux, access to
 	}
 	pf := root.PersistentFlags()
 	pf.StringVarP(&a.iface, "interface", "i", os.Getenv(EnvInterface), "Ethernet interface (env "+EnvInterface+")")
-	pf.StringVarP(&a.format, "format", "o", envOr(EnvFormat, "text"), "Output format: text, json or table (env "+EnvFormat+")")
+	pf.StringVarP(&a.format, "format", "o", envOr(EnvFormat, envOr(EnvOutputFormat, "text")), "Output format: text, json or table (env "+EnvFormat+")")
 	pf.DurationVar(&a.timeout, "timeout", envDuration(EnvTimeout, 5*time.Second), "Time limit of one request to a device (env "+EnvTimeout+")")
 	pf.BoolVar(&a.debug, "debug", false, "Log go-profinet's diagnostics to stderr and show the causes of an error")
 	pf.StringVar(&a.pcapFile, "pcap", "", "Record every frame sent and received to this pcap file")
@@ -246,7 +249,7 @@ func Run(ctx context.Context, b Backend, args []string, stdout, stderr io.Writer
 			// (or PROFINETCTL_FORMAT) all the same.
 			raw, ok := runner.FormatArg(args)
 			if !ok {
-				raw = envOr(EnvFormat, "text")
+				raw = envOr(EnvFormat, envOr(EnvOutputFormat, "text"))
 			}
 			if f, ferr := format.Parse(raw); ferr == nil {
 				inv.SetOutputFormat(f)

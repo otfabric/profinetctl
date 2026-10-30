@@ -57,7 +57,7 @@ func classify(what string, err error) error {
 	case errors.Is(err, profinet.ErrMalformed):
 		return errs.New(errs.KindProtocol, errs.CodeProtocolViolation, msg, err)
 	case errors.Is(err, profinet.ErrUnsupported):
-		return errs.New(errs.KindRefused, errs.CodeUnsupported, msg, err)
+		return errs.New(errs.KindUnsupported, errs.CodeUnsupported, msg, err)
 	case errors.Is(err, profinet.ErrRejected), errors.Is(err, profinet.ErrAborted):
 		return errs.New(errs.KindRefused, errs.CodeConnectFailed, msg, err)
 	case errors.Is(err, profinet.ErrInvalidConfig):
