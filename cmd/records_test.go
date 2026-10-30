@@ -95,7 +95,7 @@ func TestRecordWithoutIPOrDeviceAccess(t *testing.T) {
 	n.fails(2, "invalid_flag_combination", "-i", "pn0", "record", "write", "--mac", "02:00:00:00:00:11", "--index", "1", "--data", "00", "--gsdml", gf)
 	n.fails(2, "invalid_flag_combination", "-i", "pn0", "im", "write", "--mac", "02:00:00:00:00:11", "--descriptor", "x", "--gsdml", gf)
 	n.fails(3, "invalid_gsdml", "-i", "pn0", "record", "write", "-s", "no-sar", "--index", "1", "--data", "00", "--gsdml", gf, "--dap", "nope")
-	n.fails(8, "", "-i", "pn0", "record", "write", "-s", "nobody", "--index", "1", "--data", "00", "--gsdml", gf, "--wait", "200ms")
+	n.fails(11, "", "-i", "pn0", "record", "write", "-s", "nobody", "--index", "1", "--data", "00", "--gsdml", gf, "--wait", "200ms")
 }
 
 func TestIM(t *testing.T) {

@@ -218,7 +218,7 @@ func newMRPCmd(a *app) *cobra.Command {
 					return nil, err
 				}
 				if !ok {
-					return nil, errs.New(errs.KindRefused, errs.CodeUnsupported, "the device has no media redundancy (no PDInterfaceMrpDataReal record)", nil)
+					return nil, errs.New(errs.KindUnsupported, errs.CodeUnsupported, "the device has no media redundancy (no PDInterfaceMrpDataReal record)", nil)
 				}
 				real, err := pnio.DecodePDInterfaceMrpDataReal(blk)
 				if err != nil {

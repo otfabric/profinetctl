@@ -101,7 +101,7 @@ func TestGSDMLCommands(t *testing.T) {
 		t.Fatalf("table:\n%s", out)
 	}
 	// Errors.
-	n.fails(8, "invalid_input", "gsdml", "submodules", file, "--module", "0x99")
+	n.fails(11, "invalid_input", "gsdml", "submodules", file, "--module", "0x99")
 	n.fails(3, "invalid_input", "gsdml", "submodules", file, "--module", "x")
 	n.fails(3, "invalid_gsdml", "gsdml", "modules", file, "--dap", "NoSuchDAP")
 	n.fails(3, "input_file_open_failed", "gsdml", "inspect", file+".none")
@@ -235,7 +235,7 @@ func TestConnectErrors(t *testing.T) {
 		t.Fatalf("module diff %d\n%s\n%s", code, out, errOut)
 	}
 	// No such device.
-	n.fails(8, "", "-i", "pn0", "connect", "-s", "nobody", "--gsdml", gf, "--connect-timeout", "1500ms")
+	n.fails(11, "", "-i", "pn0", "connect", "-s", "nobody", "--gsdml", gf, "--connect-timeout", "1500ms")
 	// A bad model file.
 	n.fails(3, "invalid_model", "-i", "pn0", "connect", "-s", "dev-a", "--model", writeFile(t, "m.json", []byte(`{"identity":{}}`)))
 	n.fails(3, "invalid_model", "-i", "pn0", "connect", "-s", "dev-a", "--model", writeFile(t, "m2.json", []byte(`[`)))

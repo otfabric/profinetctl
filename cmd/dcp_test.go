@@ -112,7 +112,7 @@ func TestIdentify(t *testing.T) {
 		t.Fatalf("table:\n%s", out)
 	}
 	// Selection errors.
-	n.fails(8, "device_not_found", "-i", "pn0", "identify", "-s", "nobody", "--wait", "200ms")
+	n.fails(11, "device_not_found", "-i", "pn0", "identify", "-s", "nobody", "--wait", "200ms")
 	n.fails(2, "invalid_input", "-i", "pn0", "identify")
 	n.fails(2, "invalid_flag_combination", "-i", "pn0", "identify", "-s", "dev-a", "--mac", d.mac.String())
 	n.fails(3, "invalid_input", "-i", "pn0", "identify", "-s", "Not_A_Name")
@@ -230,7 +230,7 @@ func TestGlobalErrors(t *testing.T) {
 	n.fails(2, "invalid_input", "discover")
 	n.fails(3, "interface_open_failed", "-i", "eth9", "discover")
 	n.openErr = os.ErrPermission
-	msg := n.fails(4, "permission_denied", "-i", "pn0", "discover")
+	msg := n.fails(9, "permission_denied", "-i", "pn0", "discover")
 	if !strings.Contains(msg, "CAP_NET_RAW") {
 		t.Fatalf("message %q", msg)
 	}
@@ -265,6 +265,16 @@ func TestGlobalErrors(t *testing.T) {
 	if out, _, code := n.run("nope"); code != 2 || !strings.Contains(out, `"kind": "usage"`) {
 		t.Fatalf("env format %d %q", code, out)
 	}
+	t.Setenv(EnvFormat, "")
+	t.Setenv(EnvOutputFormat, "json") // the older spelling stays accepted
+	if out, _, code := n.run("nope"); code != 2 || !strings.Contains(out, `"kind": "usage"`) {
+		t.Fatalf("env output format %d %q", code, out)
+	}
+	t.Setenv(EnvFormat, "text") // the canonical name wins
+	if out, _, code := n.run("nope"); code != 2 || strings.Contains(out, `"kind"`) {
+		t.Fatalf("env format over output format %d %q", code, out)
+	}
+	t.Setenv(EnvOutputFormat, "")
 	t.Setenv(EnvInterface, "pn0")
 	t.Setenv(EnvFormat, "")
 	if out := n.ok("discover", "--wait", "100ms"); !strings.Contains(out, "0 device(s)") {

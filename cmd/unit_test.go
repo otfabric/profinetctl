@@ -51,7 +51,7 @@ func TestClassify(t *testing.T) {
 		fmt.Errorf("a: %w", profinet.ErrTimeout): errs.KindTimeout,
 		profinet.ErrNotFound:                     errs.KindNotFound,
 		profinet.ErrMalformed:                    errs.KindProtocol,
-		profinet.ErrUnsupported:                  errs.KindRefused,
+		profinet.ErrUnsupported:                  errs.KindUnsupported,
 		profinet.ErrRejected:                     errs.KindRefused,
 		profinet.ErrAborted:                      errs.KindRefused,
 		profinet.ErrInvalidConfig:                errs.KindInvalidInput,
@@ -130,7 +130,7 @@ func TestOSBackend(t *testing.T) {
 		t.Fatal("openLink of a missing interface")
 	}
 	for err, code := range map[error]string{syscall.EPERM: errs.CodePermissionDenied, syscall.EACCES: errs.CodePermissionDenied, os.ErrPermission: errs.CodePermissionDenied} {
-		if e, _ := errs.As(openError("x", "y", err)); e.Code != code || e.Kind != errs.KindTransport {
+		if e, _ := errs.As(openError("x", "y", err)); e.Code != code || e.Kind != errs.KindPermission {
 			t.Errorf("%v: %+v", err, e)
 		}
 	}

@@ -118,7 +118,7 @@ Every command has `--help`. A device is selected by `--station NAME` (resolved w
 | Flag | Environment | Default | Meaning |
 |------|-------------|---------|---------|
 | `-i`, `--interface` | `PROFINETCTL_INTERFACE` | | the Ethernet interface |
-| `-o`, `--format` | `PROFINETCTL_FORMAT` | `text` | `text`, `json` or `table` |
+| `-o`, `--format` | `PROFINETCTL_FORMAT` (`PROFINETCTL_OUTPUT_FORMAT` stays accepted) | `text` | `text`, `json` or `table` |
 | `--timeout` | `PROFINETCTL_TIMEOUT` | `5s` | time limit of one request |
 | `--pcap FILE` | | | record every frame sent and received (open it with Wireshark) |
 | `--debug` | | | go-profinet's diagnostics on stderr, and the causes of an error |
@@ -156,12 +156,14 @@ $ sudo profinetctl -i eth0 connect -s io-rack-1 --gsdml device.xml --plug 3=0x30
 | 0 | success |
 | 2 | usage: unknown command or flag, missing selection or confirmation |
 | 3 | invalid input: a flag value, GSDML or model file that does not make sense; nothing was sent |
-| 4 | transport: the interface cannot be opened (privileges), a socket cannot be bound |
+| 4 | transport: the interface cannot be opened, a socket cannot be bound |
 | 5 | timeout: the device did not answer |
 | 6 | refused or protocol error: a PNIO error status, a DCP block error, a duplicate station name, a malformed answer |
 | 7 | partial: a result was written and some of it failed (a GSDML file with issues, a topology check that found differences, an I&M record that could not be read) |
-| 8 | not found: no device answers to the station name |
+| 8 | unsupported: the device does not support the operation |
+| 9 | permission: the host denies raw Ethernet access |
 | 10 | output or internal error |
+| 11 | not found: no device answers to the station name |
 | 130 | interrupted (Ctrl-C) before a result |
 
 Details in [docs/exitcodes.md](docs/exitcodes.md).

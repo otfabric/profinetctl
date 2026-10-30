@@ -152,7 +152,7 @@ func TestMRPStatus(t *testing.T) {
 		t.Fatalf("text:\n%s", out)
 	}
 	// A device without MRP answers the read with "invalid index".
-	if out := n.fails(6, "unsupported", "-i", "pn0", "mrp", "status", "-s", "plain"); !strings.Contains(out, "no media redundancy") {
+	if out := n.fails(8, "unsupported", "-i", "pn0", "mrp", "status", "-s", "plain"); !strings.Contains(out, "no media redundancy") {
 		t.Fatalf("a device without MRP:\n%s", out)
 	}
 	// The role, written by an AR.
