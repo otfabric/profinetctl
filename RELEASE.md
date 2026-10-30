@@ -23,6 +23,17 @@ ending with a `---` line and no `---` line inside a section
 
 ---
 
+## v0.7.1
+
+**Date:** 2026-10-31
+**Previous release:** v0.7.0
+
+### Dependencies
+
+- go-profinet v0.6.1 (see its release notes). No command changes.
+
+---
+
 ## v0.7.0
 
 **Date:** 2026-10-30
