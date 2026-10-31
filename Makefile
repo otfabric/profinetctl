@@ -1,4 +1,4 @@
-.PHONY: help all run test coverage cover compile cross lint lint-ci fmt fmt-check vet vuln build build-nocheck build-all release-all install clean pnet-smoke examples-doc release-notes-check e2e
+.PHONY: help all run test coverage cover compile cross lint lint-ci fmt fmt-check vet vuln build build-nocheck build-all release-all install clean pnet-smoke examples-doc release-notes-check e2e coverage-pkg-check fuzz
 
 help: ## This help
 	@awk 'BEGIN {FS = ":.*?## "} /^[a-zA-Z0-9_-]+:.*?## / {printf "\033[36m%-30s\033[0m %s\n", $$1, $$2}' $(MAKEFILE_LIST)
@@ -32,6 +32,9 @@ RELEASE_DIR   := release
 
 # Minimum total statement coverage (percent) enforced by `make coverage`.
 COVERAGE_MIN ?= 90
+# Per-package floor (TEST-012), from the coverage.out of `make coverage`.
+COVER_PKG_MIN := 85
+FUZZTIME ?= 10s
 
 all: test build build-all ## Test and build the application
 
@@ -39,7 +42,7 @@ run: ## Run the application
 	@echo "Running $(APP_NAME)"
 	@go run $(APP_SRC)
 
-check: release-notes-check fmt fmt-check lint lint-ci vet cross vuln test coverage ## Run all checks (format, lint, vet, 32-bit build, vulnerability scan, test, coverage)
+check: release-notes-check fmt fmt-check lint lint-ci vet cross vuln test coverage coverage-pkg-check ## Run all checks (format, lint, vet, 32-bit build, vulnerability scan, test, coverage)
 
 test: ## Run unit tests with race detector
 	@echo "Running unit tests (race detector)"
@@ -52,6 +55,19 @@ coverage: ## Run tests with whole-module coverage (writes coverage.out); fails b
 	echo "Total coverage: $$total% (minimum $(COVERAGE_MIN)%)"; \
 	awk -v t="$$total" -v m="$(COVERAGE_MIN)" 'BEGIN { exit (t + 0 < m + 0) ? 1 : 0 }' || \
 		{ echo "Coverage $$total% is below the required $(COVERAGE_MIN)%"; exit 1; }
+
+coverage-pkg-check: coverage ## Fail when a package is below COVER_PKG_MIN
+	@awk -v m="$(COVER_PKG_MIN)" 'NR > 1 { n[$$1] = $$2; if ($$3 > 0) h[$$1] = 1 } \
+	END { for (k in n) { p = k; sub(/\/[^\/]*$$/, "", p); s[p] += n[k]; if (k in h) c[p] += n[k] } \
+	for (p in s) { v = 100 * c[p] / s[p]; if (v < m) { printf "%s: %.1f%% < %s%%\n", p, v, m; bad = 1 } } exit bad }' coverage.out
+
+fuzz: ## Run every fuzz target for FUZZTIME (targets discovered, never listed)
+	@for pkg in $$(go list ./...); do \
+		for t in $$(go test -list '^Fuzz' $$pkg | grep '^Fuzz'); do \
+			echo "fuzz $$pkg $$t"; \
+			go test -run '^$$' -fuzz "^$$t$$" -fuzztime $(FUZZTIME) $$pkg || exit 1; \
+		done; \
+	done
 
 cover: coverage ## Open coverage report in browser (run coverage first)
 	@echo "Opening coverage report in browser"

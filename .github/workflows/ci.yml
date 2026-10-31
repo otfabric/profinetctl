@@ -16,6 +16,7 @@ jobs:
     uses: otfabric/.github/.github/workflows/go-ci.yml@v3.2.0
     with:
       run-govulncheck: true
+      fuzz-time: 10s
       coverage-min: "90"
       codecov-name: profinetctl
       go-versions: '["1.25", "1.26"]'
@@ -24,6 +25,17 @@ jobs:
       test-exclude-regex: "/example(s)?($|/)"
       coverpkg: ./...
     secrets: inherit
+
+  # The shared workflow gates the total; this job gates each package.
+  coverage-floor:
+    name: Per-package coverage floor
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v7
+      - uses: actions/setup-go@v7
+        with:
+          go-version-file: go.mod
+      - run: make coverage-pkg-check
 
   # RELEASE.md in the format the shared release workflow reads: without
   # it a release body is a commit log.
