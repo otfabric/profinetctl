@@ -23,6 +23,18 @@ ending with a `---` line and no `---` line inside a section
 
 ---
 
+## v0.7.2
+
+**Date:** 2026-10-31
+**Previous release:** v0.7.1
+
+### Changed
+
+- Policy 1.2: build output in `bin/` and `release/`, a per-package coverage floor, and more tests and CI. No change in behaviour.
+- Built on go-profinet v0.6.2.
+
+---
+
 ## v0.7.1
 
 **Date:** 2026-10-31
