@@ -62,15 +62,16 @@ func (s *StreamWriter) Write(v any) error {
 }
 
 func (s *StreamWriter) writeTable(tm TableMarshaler) error {
-	headers := tm.TableHeaders()
+	headers := safeRow(tm.TableHeaders())
 	rows := tm.TableRows()
 	if len(headers) == 0 {
 		return fmt.Errorf("table has no headers")
 	}
-	for _, row := range rows {
+	for i, row := range rows {
 		if len(row) != len(headers) {
 			return fmt.Errorf("table row has %d columns, want %d", len(row), len(headers))
 		}
+		rows[i] = safeRow(row)
 	}
 
 	var b strings.Builder

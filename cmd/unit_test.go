@@ -178,14 +178,16 @@ func TestLink(t *testing.T) {
 	// The tap passes multicast groups to the inner port.
 	var buf bytes.Buffer
 	w, _ := pcap.NewWriter(&buf)
-	tp := &tappedPort{Port: ep, w: w}
+	tap := &pcapTap{}
+	tap.start(w)
+	tp := &tappedPort{Port: ep, tap: tap}
 	if err := tp.JoinMulticast(ethernet.LLDPMulticast); err != nil {
 		t.Fatal(err)
 	}
 	if err := tp.LeaveMulticast(ethernet.LLDPMulticast); err != nil {
 		t.Fatal(err)
 	}
-	other := &tappedPort{Port: plainPort{ep}, w: w}
+	other := &tappedPort{Port: plainPort{ep}, tap: tap}
 	if err := other.LeaveMulticast(ethernet.LLDPMulticast); err != nil {
 		t.Fatal(err)
 	}

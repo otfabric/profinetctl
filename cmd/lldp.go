@@ -287,6 +287,9 @@ func links(nodes []topoNode) []topoLink {
 	return out
 }
 
+// topologyReads is how many PDRealData reads topology runs at a time.
+const topologyReads = 8
+
 func newTopologyCmd(a *app) *cobra.Command {
 	var wait, lldpWait time.Duration
 	c := &cobra.Command{
@@ -308,11 +311,9 @@ without an IP address cannot be read. Exit code 7 when some could not be read.`,
 				var hostNs []lldp.Neighbor
 				var wg sync.WaitGroup
 				if lldpWait > 0 {
-					wg.Add(1)
-					go func() {
-						defer wg.Done()
+					wg.Go(func() {
 						hostNs, _ = listenLLDP(ctx, s, lldpWait)
-					}()
+					})
 				}
 				ids, err := s.dcp.Identify(ctx, dcp.FilterAll(), dcp.IdentifyOptions{Wait: wait, ResponseDelay: 10})
 				if err != nil {
@@ -325,10 +326,15 @@ without an IP address cannot be read. Exit code 7 when some could not be read.`,
 					wg.Wait()
 					return nil, errs.New(errs.KindTransport, errs.CodeSocketFailed, fmt.Sprintf("RPC socket: %v", err), err)
 				}
-				cli := rpc.NewClient(conn, true, rpc.ClientOptions{Timeout: a.timeout, Activities: 8, Logger: a.logger()})
+				cli := rpc.NewClient(conn, true, rpc.ClientOptions{Timeout: a.timeout, Activities: topologyReads, Logger: a.logger()})
 				defer func() { _ = cli.Close() }()
 				nodes := make([]topoNode, len(ids))
 				var nwg sync.WaitGroup
+				// At most as many reads at a time as the client has
+				// activities: a network (or a spoofer) answering Identify
+				// with thousands of stations does not start thousands of
+				// goroutines.
+				sem := make(chan struct{}, topologyReads)
 				for i, id := range ids {
 					nodes[i] = topoNode{Station: id.NameOfStation, MAC: id.MAC.String(), IP: addrOr(id.IP.Addr), Ports: []topoPort{}}
 					if !id.IP.Addr.IsValid() || id.IP.Addr.IsUnspecified() {
@@ -337,9 +343,11 @@ without an IP address cannot be read. Exit code 7 when some could not be read.`,
 					}
 					addr := &net.UDPAddr{IP: id.IP.Addr.AsSlice(), Port: rpc.Port}
 					nodes[i].rc = controller.NewRecordClient(cli, addr, pnio.ObjectUUID(max(id.Instance, 1), id.DeviceID, id.VendorID))
+					sem <- struct{}{} // each read ends within --timeout
 					nwg.Add(1)
 					go func(n *topoNode) {
 						defer nwg.Done()
+						defer func() { <-sem }()
 						cctx, cancel := context.WithTimeout(ctx, a.timeout)
 						defer cancel()
 						b, err := n.rc.Read(cctx, rpc.NilUUID, controller.Record{Slot: 0, Subslot: 1, Index: pnio.IndexPDRealData}, 0)

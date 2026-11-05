@@ -66,7 +66,7 @@ func writeJSON(w io.Writer, v any) error {
 }
 
 func writeTextWithTrailingNewline(w io.Writer, s string) error {
-	s = strings.TrimSuffix(s, "\n")
+	s = SafeText(strings.TrimSuffix(s, "\n"))
 	if _, err := io.WriteString(w, s+"\n"); err != nil {
 		return err
 	}

@@ -145,8 +145,22 @@ func TestMRPStatus(t *testing.T) {
 	n.device("plain", "192.168.0.41")
 	var r mrpResult
 	n.json(&r, "-i", "pn0", "mrp", "status", "-s", "ring-a")
-	if r.Role != "manager" || r.DomainName != "mrpdomain-1" || r.Domain != "ffffffff-ffff-ffff-ffff-ffffffffffff" || r.RingState != "open" || len(r.RingPorts) != 2 {
+	// Ports 3 and 4 of the default --ports 4 do not exist: absent, not errors.
+	if r.Role != "manager" || r.DomainName != "mrpdomain-1" || r.Domain != "ffffffff-ffff-ffff-ffff-ffffffffffff" || r.RingState != "open" || len(r.RingPorts) != 2 || r.Errors != nil {
 		t.Fatalf("status %+v", r)
+	}
+	r = mrpResult{}
+	n.json(&r, "-i", "pn0", "mrp", "status", "-s", "ring-a", "--ports", "255")
+	if len(r.RingPorts) != 2 || r.Errors != nil {
+		t.Fatalf("--ports 255: %+v", r)
+	}
+	n.fails(3, "invalid_input", "-i", "pn0", "mrp", "status", "-s", "ring-a", "--ports", "0")
+	n.fails(2, "invalid_input", "-i", "pn0", "mrp", "status", "-s", "ring-a", "--ports", "256")
+	if !(mrpResult{Errors: []string{"0x8001: timeout"}}).Partial() || (mrpResult{}).Partial() {
+		t.Fatal("Partial")
+	}
+	if out, _ := (mrpResult{Errors: []string{"0x8001: timeout"}}).MarshalTextOutput(); !strings.Contains(out, "error: port 0x8001: timeout") {
+		t.Fatalf("text %q", out)
 	}
 	if out := n.ok("-i", "pn0", "mrp", "status", "-s", "ring-a"); !strings.Contains(out, "MRP manager") || !strings.Contains(out, "ring open") {
 		t.Fatalf("text:\n%s", out)

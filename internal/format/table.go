@@ -8,9 +8,18 @@ import (
 	"text/tabwriter"
 )
 
+// safeRow returns the cells escaped with SafeCell.
+func safeRow(cells []string) []string {
+	out := make([]string, len(cells))
+	for i, c := range cells {
+		out[i] = SafeCell(c)
+	}
+	return out
+}
+
 // RenderTable renders headers and rows as column-aligned text using tabwriter.
 func RenderTable(m TableMarshaler) (string, error) {
-	headers := m.TableHeaders()
+	headers := safeRow(m.TableHeaders())
 	rows := m.TableRows()
 	if len(headers) == 0 {
 		return "", fmt.Errorf("table has no headers")
@@ -27,7 +36,7 @@ func RenderTable(m TableMarshaler) (string, error) {
 		if len(row) != len(headers) {
 			return "", fmt.Errorf("table row has %d columns, want %d", len(row), len(headers))
 		}
-		_, _ = fmt.Fprintln(tw, strings.Join(row, "\t"))
+		_, _ = fmt.Fprintln(tw, strings.Join(safeRow(row), "\t"))
 	}
 	if err := tw.Flush(); err != nil {
 		return "", err

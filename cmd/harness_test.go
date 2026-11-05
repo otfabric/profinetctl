@@ -254,7 +254,7 @@ func (n *testNet) fails(code int, errCode string, args ...string) string {
 func jsonLines(t *testing.T, out string) []map[string]any {
 	t.Helper()
 	var evs []map[string]any
-	for _, l := range strings.Split(strings.TrimSpace(out), "\n") {
+	for l := range strings.SplitSeq(strings.TrimSpace(out), "\n") {
 		if l == "" {
 			continue
 		}

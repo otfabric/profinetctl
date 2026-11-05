@@ -54,7 +54,7 @@ func loadModel(gsdmlFile, dap, modelFile string) (*model.Device, error) {
 		}
 		return m, nil
 	case modelFile != "":
-		b, err := os.ReadFile(modelFile)
+		b, err := readInputFile(modelFile)
 		if err != nil {
 			return nil, errs.InvalidInput(errs.CodeInputFileOpenFailed, fmt.Sprintf("model file: %v", err), err)
 		}
@@ -175,8 +175,7 @@ func inspect(path string, doc *gsdml.Document) inspectResult {
 	}
 	err := gsdml.Validate(doc)
 	r.Valid = err == nil
-	var ve *gsdml.ValidationError
-	if errors.As(err, &ve) {
+	if ve, ok := errors.AsType[*gsdml.ValidationError](err); ok {
 		r.Issues = len(ve.Issues)
 	}
 	return r
@@ -484,7 +483,7 @@ file goes to stdout; with a directory it gets its conventional name
 			if fi, err := os.Stat(out); err == nil && fi.IsDir() {
 				path = filepath.Join(out, gsdml.FileName(m, version, time.Now()))
 			}
-			if err := os.WriteFile(path, b, 0o644); err != nil {
+			if err := writeOutputFile(path, b); err != nil {
 				return errs.Output(errs.CodeOutputFileWriteFailed, err)
 			}
 			return a.result(c, func(context.Context) (any, error) { return generateResult{File: path, Bytes: len(b)}, nil })

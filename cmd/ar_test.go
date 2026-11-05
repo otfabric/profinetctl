@@ -124,7 +124,7 @@ func TestConnect(t *testing.T) {
 	// The outputs reach the device while the AR runs.
 	gotOutput := make(chan string, 1)
 	go func() {
-		for i := 0; i < 300; i++ {
+		for range 300 {
 			time.Sleep(10 * time.Millisecond)
 			if v, iops, ok := d.dev.Output(2, 1); ok && iops == pnio.IOxSGood {
 				gotOutput <- hex.EncodeToString(v)
@@ -175,7 +175,7 @@ func TestConnect(t *testing.T) {
 	go func() {
 		// Once the AR runs (t.Fatal must not be called here).
 		defer cancel()
-		for i := 0; i < 1000; i++ {
+		for range 1000 {
 			for _, a := range d.dev.ARs() {
 				if a.State == device.ARStateData {
 					time.Sleep(200 * time.Millisecond)
@@ -438,14 +438,16 @@ func TestDisconnect(t *testing.T) {
 	if rows := r.TableRows(); rows[0][0] != "dev-a" {
 		t.Fatalf("rows %v", rows)
 	}
-	n.fails(3, "invalid_input", "-i", "pn0", "disconnect", "-s", "dev-a", "--ar", "nope")
-	n.fails(2, "invalid_input", "-i", "pn0", "disconnect", "-s", "dev-a")
+	n.fails(3, "invalid_input", "-i", "pn0", "disconnect", "-s", "dev-a", "--ar", "nope", "--session-key", "1")
+	n.fails(2, "invalid_input", "-i", "pn0", "disconnect", "-s", "dev-a", "--session-key", "1")
+	// Without --session-key a Release with key 0 would be sent.
+	n.fails(2, "invalid_input", "-i", "pn0", "disconnect", "-s", "dev-a", "--ar", ar.UUID().String())
 }
 
 // diagnoseWhenRunning raises a diagnosis of slot/1 once the device has an
 // IOCAR in the Data state.
 func diagnoseWhenRunning(d *testDev, slot uint16, item pnio.DiagnosisItem) {
-	for i := 0; i < 1000; i++ {
+	for range 1000 {
 		for _, a := range d.dev.ARs() {
 			if a.Type == pnio.ARTypeIOCARSingle && a.State == device.ARStateData {
 				_ = d.dev.AddDiagnosis(context.Background(), slot, 1, item)

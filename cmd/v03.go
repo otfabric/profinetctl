@@ -6,7 +6,6 @@ import (
 	"context"
 	"errors"
 	"fmt"
-	"os"
 	"strings"
 
 	"github.com/spf13/cobra"
@@ -105,10 +104,15 @@ issues.`,
 					return errs.InvalidInput(errs.CodeInvalidInput, fmt.Sprintf("--extract %s: %v", extract, err), err)
 				}
 				if out == "" {
-					_, err = c.OutOrStdout().Write(b)
-					return err
+					if _, err := c.OutOrStdout().Write(b); err != nil {
+						return errs.Output(errs.CodeOutputWriteFailed, err)
+					}
+					return nil
 				}
-				return os.WriteFile(out, b, 0o644)
+				if err := writeOutputFile(out, b); err != nil {
+					return errs.Output(errs.CodeOutputFileWriteFailed, err)
+				}
+				return nil
 			}
 			return a.result(c, func(context.Context) (any, error) {
 				p, err := gsdx.OpenFile(args[0])
@@ -143,7 +147,12 @@ type mrpResult struct {
 	Domain     string        `json:"domain_uuid"`
 	RingState  string        `json:"ring_state,omitempty"`
 	RingPorts  []mrpPortView `json:"ring_ports"`
+	// Errors lists the port submodules whose record could not be read.
+	Errors []string `json:"errors,omitempty"`
 }
+
+// Partial reports ring port records that could not be read.
+func (r mrpResult) Partial() bool { return len(r.Errors) > 0 }
 
 type mrpPortView struct {
 	Subslot string `json:"subslot"`
@@ -158,6 +167,9 @@ func (r mrpResult) MarshalTextOutput() (string, error) {
 	}
 	for _, p := range r.RingPorts {
 		fmt.Fprintf(&b, "ring port %s\n", p.Subslot)
+	}
+	for _, e := range r.Errors {
+		fmt.Fprintf(&b, "error: port %s\n", e)
 	}
 	return b.String(), nil
 }
@@ -180,7 +192,7 @@ func uuidString(d [16]byte) string {
 func newMRPCmd(a *app) *cobra.Command {
 	g := groupCmd("mrp", "Media redundancy (MRP) of a device")
 	var t target
-	var ports int
+	var ports uint8
 	status := &cobra.Command{
 		Use:   "status",
 		Short: "Read a device's MRP role, domain, ring state and ring ports (PDInterfaceMrpDataReal, PDPortMrpDataReal)",
@@ -189,19 +201,24 @@ func newMRPCmd(a *app) *cobra.Command {
 			if err := t.validate(); err != nil {
 				return err
 			}
+			if ports == 0 {
+				return errs.InvalidInput(errs.CodeInvalidInput, fmt.Sprintf("--ports 0: want 1 to %d", maxPorts), nil)
+			}
 			return a.result(c, func(ctx context.Context) (any, error) {
 				s, err := a.openRPC(ctx, &t)
 				if err != nil {
 					return nil, err
 				}
 				defer s.Close()
-				cctx, cancel := s.ctx(ctx)
-				defer cancel()
 				read := func(sub uint16, idx pnio.Index) (pnio.RawBlock, bool, error) {
+					// Each read has its own --timeout.
+					cctx, cancel := s.ctx(ctx)
+					defer cancel()
 					b, err := s.rc.Read(cctx, rpc.NilUUID, controller.Record{Slot: 0, Subslot: sub, Index: idx}, 4096)
 					var se *pnio.StatusError
-					if errors.As(err, &se) && se.Status.Decode == pnio.DecodePNIORW && se.Status.Code1 == pnio.RWInvalidIndex {
-						// A device without media redundancy has no such record.
+					if errors.As(err, &se) && se.Status.Decode == pnio.DecodePNIORW && (se.Status.Code1 == pnio.RWInvalidIndex || se.Status.Code1 == pnio.RWInvalidSlot) {
+						// A device without media redundancy has no such
+						// record; one with fewer ports no such submodule.
 						return pnio.RawBlock{}, false, nil
 					}
 					if err != nil {
@@ -229,30 +246,60 @@ func newMRPCmd(a *app) *cobra.Command {
 				if real.HasRingState {
 					r.RingState = map[bool]string{true: "closed", false: "open"}[real.RingState == uint16(mrp.RingClosed)]
 				}
-				for i := 0; i < ports; i++ {
-					sub := model.SubslotPort1 + uint16(i)
-					pb, ok, err := read(sub, pnio.IndexPDPortMrpDataReal)
-					if err != nil || !ok {
-						continue
-					}
-					if pr, err := pnio.DecodePDPortMrpData(pb); err == nil {
-						r.RingPorts = append(r.RingPorts, mrpPortView{Subslot: fmt.Sprintf("%#04x", sub), Domain: uuidString(pr.Domain)})
-					}
-				}
+				r.RingPorts, r.Errors = ringPorts(ports, func(sub uint16) (pnio.RawBlock, bool, error) {
+					return read(sub, pnio.IndexPDPortMrpDataReal)
+				})
 				return r, nil
 			})
 		},
 	}
 	addRPCTargetFlags(status, &t)
-	status.Flags().IntVar(&ports, "ports", 4, "How many port submodules to read")
+	status.Flags().Uint8Var(&ports, "ports", 4, fmt.Sprintf("How many port submodules to read (1 to %d)", maxPorts))
 	g.AddCommand(status)
 	return g
 }
 
+// ringPorts reads PDPortMrpDataReal of the first n port submodules: the
+// ring ports, and the ports whose record could not be read or decoded. A
+// port submodule the device does not have (ok false) is left out.
+func ringPorts(n uint8, read func(sub uint16) (pnio.RawBlock, bool, error)) ([]mrpPortView, []string) {
+	ports := []mrpPortView{}
+	var failed []string
+	for sub := model.SubslotPort1; sub < model.SubslotPort1+uint16(n); sub++ {
+		blk, ok, err := read(sub)
+		if err == nil && !ok {
+			continue
+		}
+		var pr pnio.PDPortMrpData
+		if err == nil {
+			pr, err = pnio.DecodePDPortMrpData(blk)
+			if err != nil {
+				err = classify("PDPortMrpDataReal", err)
+			}
+		}
+		if err != nil {
+			failed = append(failed, fmt.Sprintf("%#04x: %v", sub, err))
+			continue
+		}
+		ports = append(ports, mrpPortView{Subslot: fmt.Sprintf("%#04x", sub), Domain: uuidString(pr.Domain)})
+	}
+	return ports, failed
+}
+
+// maxPorts is the number of port submodules of an interface: 0x8001 to
+// 0x80FF, as --peer-check numbers them.
+const maxPorts = 255
+
 // mrpSetting reads --mrp-role.
 func mrpSetting(role, name string) (*controller.MRPSetting, error) {
+	if len(name) > maxNameLen {
+		return nil, fmt.Errorf("--mrp-domain-name of %d octets (at most %d)", len(name), maxNameLen)
+	}
 	switch role {
 	case "":
+		if name != "" {
+			return nil, errors.New("--mrp-domain-name needs --mrp-role")
+		}
 		return nil, nil
 	case "client":
 		return &controller.MRPSetting{Role: mrp.RoleClient, DomainName: name}, nil

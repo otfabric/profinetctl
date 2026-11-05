@@ -122,11 +122,11 @@ func RenderFatal(inv *Invocation, err error, stdout, stderr io.Writer, debug boo
 			return errs.ExitInternal
 		}
 	} else {
-		_, _ = fmt.Fprintf(stderr, "error: %s\n", Info(err).Message)
+		_, _ = fmt.Fprintf(stderr, "error: %s\n", format.SafeText(Info(err).Message))
 	}
 	if debug {
 		for c := errors.Unwrap(err); c != nil; c = errors.Unwrap(c) {
-			_, _ = fmt.Fprintf(stderr, "cause: %v\n", c)
+			_, _ = fmt.Fprintf(stderr, "cause: %s\n", format.SafeText(fmt.Sprint(c)))
 		}
 	}
 	return code

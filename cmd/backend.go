@@ -6,6 +6,7 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"io"
 	"net"
 	"os"
 	"sync"
@@ -20,6 +21,7 @@ import (
 	"github.com/otfabric/go-profinet/pcap"
 
 	"github.com/otfabric/profinetctl/internal/errs"
+	"github.com/otfabric/profinetctl/internal/format"
 )
 
 // Backend opens the network: the interfaces of the host and a Layer 2 link
@@ -105,26 +107,93 @@ func (a *app) openLink() (*Link, error) {
 		}
 		return l, nil
 	}
-	f, err := os.Create(a.pcapFile)
+	// The file is opened (created) first, so a bad path fails before the
+	// interface is touched, but only emptied once the interface is open:
+	// a failed open leaves an existing capture alone. It may be a FIFO
+	// (live Wireshark) or a device, which are not truncated.
+	_, statErr := os.Lstat(a.pcapFile)
+	created := errors.Is(statErr, os.ErrNotExist)
+	f, err := openOutputFile(a.pcapFile)
 	if err != nil {
 		return nil, errs.New(errs.KindInvalidInput, errs.CodeOutputFileCreateFailed, fmt.Sprintf("pcap file: %v", err), err)
 	}
-	w, err := pcap.NewWriter(f)
+	tap := &pcapTap{}
+	l, err := a.backend.Open(a.iface, func(p l2.Port) l2.Port { return &tappedPort{Port: p, tap: tap} })
 	if err != nil {
 		_ = f.Close()
-		return nil, errs.Output(errs.CodeOutputFileWriteFailed, err)
-	}
-	l, err := a.backend.Open(a.iface, func(p l2.Port) l2.Port { return &tappedPort{Port: p, w: w} })
-	if err != nil {
-		_ = f.Close()
+		if created {
+			_ = os.Remove(a.pcapFile)
+		}
 		return nil, openError(a.iface, a.backend.Name(), err)
 	}
+	w, err := beginCapture(f)
+	if err != nil {
+		l.close()
+		_ = f.Close()
+		return nil, errs.Output(errs.CodeOutputFileWriteFailed, fmt.Errorf("pcap file: %w", err))
+	}
+	tap.start(w)
 	inner := l.close
 	l.close = func() {
 		inner()
-		_ = f.Close()
+		endCapture(a.stderr, a.pcapFile, tap, f)
 	}
 	return l, nil
+}
+
+// beginCapture empties f when it is a regular file (not a FIFO or a
+// device) and writes the pcap file header.
+func beginCapture(f *os.File) (*pcap.Writer, error) {
+	if fi, err := f.Stat(); err == nil && fi.Mode().IsRegular() {
+		if err := f.Truncate(0); err != nil {
+			return nil, err
+		}
+	}
+	return pcap.NewWriter(f)
+}
+
+// endCapture stops the tap, closes f and warns on stderr when the
+// capture could not be written completely.
+func endCapture(stderr io.Writer, path string, tap *pcapTap, f io.Closer) {
+	err := tap.stop()
+	if cerr := f.Close(); err == nil {
+		err = cerr
+	}
+	if err != nil {
+		_, _ = fmt.Fprintf(stderr, "warning: pcap file %s is incomplete: %s\n", path, format.SafeText(err.Error()))
+	}
+}
+
+// pcapTap writes the frames of every tapped port of a link to one pcap
+// file; frames before start (the interface opening) are not recorded.
+// The first write error stops the capture and is reported at the end.
+type pcapTap struct {
+	mu  sync.Mutex
+	w   *pcap.Writer
+	err error
+}
+
+func (t *pcapTap) start(w *pcap.Writer) {
+	t.mu.Lock()
+	t.w = w
+	t.mu.Unlock()
+}
+
+func (t *pcapTap) record(b []byte) {
+	t.mu.Lock()
+	defer t.mu.Unlock()
+	if t.w == nil || t.err != nil {
+		return
+	}
+	t.err = t.w.WriteFrame(time.Now(), b)
+}
+
+// stop ends the capture and returns its first write error.
+func (t *pcapTap) stop() error {
+	t.mu.Lock()
+	defer t.mu.Unlock()
+	t.w = nil
+	return t.err
 }
 
 // openError classifies a failure to open an interface.
@@ -142,15 +211,10 @@ func openError(iface, backend string, err error) error {
 // tappedPort records every frame sent and received into a pcap file.
 type tappedPort struct {
 	l2.Port
-	mu sync.Mutex
-	w  *pcap.Writer
+	tap *pcapTap
 }
 
-func (p *tappedPort) record(b []byte) {
-	p.mu.Lock()
-	_ = p.w.WriteFrame(time.Now(), b)
-	p.mu.Unlock()
-}
+func (p *tappedPort) record(b []byte) { p.tap.record(b) }
 
 func (p *tappedPort) ReadFrame(ctx context.Context, b []byte) (int, error) {
 	n, err := p.Port.ReadFrame(ctx, b)
