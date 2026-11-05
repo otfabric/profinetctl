@@ -180,3 +180,22 @@ func TestIOStatisticsInterrupted(t *testing.T) {
 		t.Fatalf("exit %d: %s", code, e.String())
 	}
 }
+
+func TestReparamAfter(t *testing.T) {
+	t.Parallel()
+	events := make(chan arEvent, 1)
+	called := false
+	ctx, cancel := context.WithCancel(t.Context())
+	cancel()
+	reparamAfter(ctx, time.Hour, func(context.Context) error { called = true; return nil }, events)
+	if called || len(events) != 0 {
+		t.Fatal("re-parameterized after the AR ended")
+	}
+	reparamAfter(t.Context(), time.Millisecond, func(context.Context) error { return context.DeadlineExceeded }, events)
+	if e := <-events; e.Event != "reparameterized" || e.Error == "" {
+		t.Fatalf("failed reparameterization: %+v", e)
+	}
+	events <- arEvent{}
+	// A full buffer drops the event instead of blocking.
+	reparamAfter(t.Context(), time.Millisecond, func(context.Context) error { return nil }, events)
+}

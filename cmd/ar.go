@@ -751,19 +751,7 @@ func (a *app) streamAR(c *cobra.Command, o *arOptions, duration, interval time.D
 			var rwg sync.WaitGroup
 			defer func() { rcancel(); rwg.Wait() }()
 			rwg.Go(func() {
-				select {
-				case <-time.After(o.reparamAfter):
-				case <-rctx.Done():
-					return
-				}
-				e := arEvent{Time: stamp(), Event: "reparameterized"}
-				if err := s.dev.Reparameterize(rctx, p.reparams); err != nil {
-					e.Error = classify("", err).Error()
-				}
-				select {
-				case s.events <- e:
-				default:
-				}
+				reparamAfter(rctx, o.reparamAfter, func(ctx context.Context) error { return s.dev.Reparameterize(ctx, p.reparams) }, s.events)
 			})
 		}
 		var mu sync.Mutex
@@ -814,6 +802,27 @@ func (a *app) streamAR(c *cobra.Command, o *arOptions, duration, interval time.D
 			}
 		}
 	})
+}
+
+// reparamAfter waits d, then re-parameterizes the AR and reports the
+// result as an event (dropped when the event buffer is full). It returns
+// at once when ctx ends first.
+func reparamAfter(ctx context.Context, d time.Duration, reparam func(context.Context) error, events chan<- arEvent) {
+	t := time.NewTimer(d)
+	defer t.Stop()
+	select {
+	case <-t.C:
+	case <-ctx.Done():
+		return
+	}
+	e := arEvent{Time: stamp(), Event: "reparameterized"}
+	if err := reparam(ctx); err != nil {
+		e.Error = classify("", err).Error()
+	}
+	select {
+	case events <- e:
+	default:
+	}
 }
 
 // summary is the final record of a connect.
