@@ -18,7 +18,6 @@ import (
 
 	clihelp "github.com/otfabric/profinetctl/internal/cli"
 	"github.com/otfabric/profinetctl/internal/errs"
-	"github.com/otfabric/profinetctl/internal/format"
 )
 
 // recordResult is the data of a record read.
@@ -295,7 +294,7 @@ func releaseAR(ctx context.Context, s *rpcSession, ar *controller.SupervisorAR) 
 	cctx, cancel := s.ctx(context.WithoutCancel(ctx))
 	defer cancel()
 	if err := ar.Release(cctx); err != nil {
-		_, _ = fmt.Fprintf(s.a.stderr, "warning: release of the device access AR: %s (the device closes it after its activity timeout)\n", format.SafeText(err.Error()))
+		_, _ = fmt.Fprintf(s.a.stderr, "warning: release of the device access AR: %v (the device closes it after its activity timeout)\n", err)
 	}
 }
 

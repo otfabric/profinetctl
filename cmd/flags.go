@@ -35,10 +35,9 @@ func checkDurations(c *cobra.Command) error {
 		if bad != nil || f.Value.Type() != "duration" {
 			return
 		}
-		d, err := time.ParseDuration(f.Value.String())
-		if err != nil {
-			return
-		}
+		// The String of a duration flag is time.Duration.String, which
+		// always parses.
+		d, _ := time.ParseDuration(f.Value.String())
 		_, positive := f.Annotations[annotationPositive]
 		switch {
 		case d < 0:

@@ -343,15 +343,10 @@ without an IP address cannot be read. Exit code 7 when some could not be read.`,
 					}
 					addr := &net.UDPAddr{IP: id.IP.Addr.AsSlice(), Port: rpc.Port}
 					nodes[i].rc = controller.NewRecordClient(cli, addr, pnio.ObjectUUID(max(id.Instance, 1), id.DeviceID, id.VendorID))
+					sem <- struct{}{} // each read ends within --timeout
 					nwg.Add(1)
 					go func(n *topoNode) {
 						defer nwg.Done()
-						select {
-						case sem <- struct{}{}:
-						case <-ctx.Done():
-							n.Error = "PDRealData: " + errorOf(ctx.Err())
-							return
-						}
 						defer func() { <-sem }()
 						cctx, cancel := context.WithTimeout(ctx, a.timeout)
 						defer cancel()

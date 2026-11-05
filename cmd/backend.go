@@ -6,6 +6,7 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"io"
 	"net"
 	"os"
 	"sync"
@@ -125,33 +126,42 @@ func (a *app) openLink() (*Link, error) {
 		}
 		return nil, openError(a.iface, a.backend.Name(), err)
 	}
-	fail := func(err error) (*Link, error) {
+	w, err := beginCapture(f)
+	if err != nil {
 		l.close()
 		_ = f.Close()
 		return nil, errs.Output(errs.CodeOutputFileWriteFailed, fmt.Errorf("pcap file: %w", err))
-	}
-	if fi, err := f.Stat(); err == nil && fi.Mode().IsRegular() {
-		if err := f.Truncate(0); err != nil {
-			return fail(err)
-		}
-	}
-	w, err := pcap.NewWriter(f)
-	if err != nil {
-		return fail(err)
 	}
 	tap.start(w)
 	inner := l.close
 	l.close = func() {
 		inner()
-		err := tap.stop()
-		if cerr := f.Close(); err == nil {
-			err = cerr
-		}
-		if err != nil {
-			_, _ = fmt.Fprintf(a.stderr, "warning: pcap file %s is incomplete: %s\n", a.pcapFile, format.SafeText(err.Error()))
-		}
+		endCapture(a.stderr, a.pcapFile, tap, f)
 	}
 	return l, nil
+}
+
+// beginCapture empties f when it is a regular file (not a FIFO or a
+// device) and writes the pcap file header.
+func beginCapture(f *os.File) (*pcap.Writer, error) {
+	if fi, err := f.Stat(); err == nil && fi.Mode().IsRegular() {
+		if err := f.Truncate(0); err != nil {
+			return nil, err
+		}
+	}
+	return pcap.NewWriter(f)
+}
+
+// endCapture stops the tap, closes f and warns on stderr when the
+// capture could not be written completely.
+func endCapture(stderr io.Writer, path string, tap *pcapTap, f io.Closer) {
+	err := tap.stop()
+	if cerr := f.Close(); err == nil {
+		err = cerr
+	}
+	if err != nil {
+		_, _ = fmt.Fprintf(stderr, "warning: pcap file %s is incomplete: %s\n", path, format.SafeText(err.Error()))
+	}
 }
 
 // pcapTap writes the frames of every tapped port of a link to one pcap

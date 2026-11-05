@@ -246,22 +246,9 @@ func newMRPCmd(a *app) *cobra.Command {
 				if real.HasRingState {
 					r.RingState = map[bool]string{true: "closed", false: "open"}[real.RingState == uint16(mrp.RingClosed)]
 				}
-				for sub := model.SubslotPort1; sub < model.SubslotPort1+uint16(ports); sub++ {
-					pb, ok, err := read(sub, pnio.IndexPDPortMrpDataReal)
-					if err != nil {
-						r.Errors = append(r.Errors, fmt.Sprintf("%#04x: %v", sub, err))
-						continue
-					}
-					if !ok {
-						continue
-					}
-					pr, err := pnio.DecodePDPortMrpData(pb)
-					if err != nil {
-						r.Errors = append(r.Errors, fmt.Sprintf("%#04x: %v", sub, classify("PDPortMrpDataReal", err)))
-						continue
-					}
-					r.RingPorts = append(r.RingPorts, mrpPortView{Subslot: fmt.Sprintf("%#04x", sub), Domain: uuidString(pr.Domain)})
-				}
+				r.RingPorts, r.Errors = ringPorts(ports, func(sub uint16) (pnio.RawBlock, bool, error) {
+					return read(sub, pnio.IndexPDPortMrpDataReal)
+				})
 				return r, nil
 			})
 		},
@@ -270,6 +257,33 @@ func newMRPCmd(a *app) *cobra.Command {
 	status.Flags().Uint8Var(&ports, "ports", 4, fmt.Sprintf("How many port submodules to read (1 to %d)", maxPorts))
 	g.AddCommand(status)
 	return g
+}
+
+// ringPorts reads PDPortMrpDataReal of the first n port submodules: the
+// ring ports, and the ports whose record could not be read or decoded. A
+// port submodule the device does not have (ok false) is left out.
+func ringPorts(n uint8, read func(sub uint16) (pnio.RawBlock, bool, error)) ([]mrpPortView, []string) {
+	ports := []mrpPortView{}
+	var failed []string
+	for sub := model.SubslotPort1; sub < model.SubslotPort1+uint16(n); sub++ {
+		blk, ok, err := read(sub)
+		if err == nil && !ok {
+			continue
+		}
+		var pr pnio.PDPortMrpData
+		if err == nil {
+			pr, err = pnio.DecodePDPortMrpData(blk)
+			if err != nil {
+				err = classify("PDPortMrpDataReal", err)
+			}
+		}
+		if err != nil {
+			failed = append(failed, fmt.Sprintf("%#04x: %v", sub, err))
+			continue
+		}
+		ports = append(ports, mrpPortView{Subslot: fmt.Sprintf("%#04x", sub), Domain: uuidString(pr.Domain)})
+	}
+	return ports, failed
 }
 
 // maxPorts is the number of port submodules of an interface: 0x8001 to
