@@ -1,6 +1,6 @@
 # profinetctl — PROFINET IO Command-Line Tool: Discovery, Names & Addresses, Records, I&M, Diagnosis, GSDML, Topology and Cyclic IO
 
-[![Go Version](https://img.shields.io/badge/Go-1.25+-00ADD8?style=flat&logo=go)](https://go.dev/)
+[![Go Version](https://img.shields.io/badge/Go-1.26+-00ADD8?style=flat&logo=go)](https://go.dev/)
 [![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](LICENSE)
 [![CI Status](https://github.com/otfabric/profinetctl/actions/workflows/ci.yml/badge.svg)](https://github.com/otfabric/profinetctl/actions/workflows/ci.yml)
 [![Code Coverage](https://codecov.io/gh/otfabric/profinetctl/graph/badge.svg)](https://codecov.io/gh/otfabric/profinetctl)
@@ -54,7 +54,7 @@ $ sudo profinetctl -i eth0 discover
 
 ## Installation
 
-Build from source with Go 1.25 or later:
+Build from source with Go 1.26 or later:
 
 ```bash
 go install github.com/otfabric/profinetctl@latest

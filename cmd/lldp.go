@@ -308,11 +308,9 @@ without an IP address cannot be read. Exit code 7 when some could not be read.`,
 				var hostNs []lldp.Neighbor
 				var wg sync.WaitGroup
 				if lldpWait > 0 {
-					wg.Add(1)
-					go func() {
-						defer wg.Done()
+					wg.Go(func() {
 						hostNs, _ = listenLLDP(ctx, s, lldpWait)
-					}()
+					})
 				}
 				ids, err := s.dcp.Identify(ctx, dcp.FilterAll(), dcp.IdentifyOptions{Wait: wait, ResponseDelay: 10})
 				if err != nil {

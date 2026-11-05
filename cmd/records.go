@@ -267,8 +267,7 @@ func (a *app) openWriter(ctx context.Context, t *target, w *writeVia) (*recordWr
 	ar, err := s.supervisor(ctx)
 	if err != nil {
 		s.Close()
-		var se *pnio.StatusError
-		if errors.As(err, &se) {
+		if _, ok := errors.AsType[*pnio.StatusError](err); ok {
 			err = errs.New(errs.KindRefused, errs.CodePNIOError, err.Error()+": the device refuses device access ARs; give --gsdml or --model to write in an IOCAR", err)
 		}
 		return nil, err
@@ -779,8 +778,7 @@ func errorOf(err error) string {
 	if err == nil {
 		return ""
 	}
-	var se *pnio.StatusError
-	if errors.As(err, &se) {
+	if se, ok := errors.AsType[*pnio.StatusError](err); ok {
 		return se.Error()
 	}
 	return classify("", err).Error()

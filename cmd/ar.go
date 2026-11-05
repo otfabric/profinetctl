@@ -298,14 +298,15 @@ func (e arEvent) MarshalTextOutput() (string, error) {
 		return s + "\n", nil
 	case "alarm":
 		a := e.Alarm
-		s := fmt.Sprintf("%s alarm %s (%s) slot %d subslot 0x%04X seq %d", e.Time, a.Type, a.Priority, a.Slot, a.Subslot, a.Sequence)
+		var s strings.Builder
+		s.WriteString(fmt.Sprintf("%s alarm %s (%s) slot %d subslot 0x%04X seq %d", e.Time, a.Type, a.Priority, a.Slot, a.Subslot, a.Sequence))
 		for _, d := range a.Diagnosis {
-			s += fmt.Sprintf("; channel 0x%04X %s %s", d.Channel, d.Error, d.Severity)
+			s.WriteString(fmt.Sprintf("; channel 0x%04X %s %s", d.Channel, d.Error, d.Severity))
 		}
 		if len(a.Diagnosis) == 0 && a.Data != "" {
-			s += " data " + a.Data
+			s.WriteString(" data " + a.Data)
 		}
-		return s + "\n", nil
+		return s.String() + "\n", nil
 	default:
 		return strings.TrimRight(fmt.Sprintf("%s %s %s", e.Time, e.Event, e.Error), " ") + "\n", nil
 	}

@@ -175,8 +175,7 @@ func inspect(path string, doc *gsdml.Document) inspectResult {
 	}
 	err := gsdml.Validate(doc)
 	r.Valid = err == nil
-	var ve *gsdml.ValidationError
-	if errors.As(err, &ve) {
+	if ve, ok := errors.AsType[*gsdml.ValidationError](err); ok {
 		r.Issues = len(ve.Issues)
 	}
 	return r
