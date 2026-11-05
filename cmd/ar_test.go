@@ -438,8 +438,10 @@ func TestDisconnect(t *testing.T) {
 	if rows := r.TableRows(); rows[0][0] != "dev-a" {
 		t.Fatalf("rows %v", rows)
 	}
-	n.fails(3, "invalid_input", "-i", "pn0", "disconnect", "-s", "dev-a", "--ar", "nope")
-	n.fails(2, "invalid_input", "-i", "pn0", "disconnect", "-s", "dev-a")
+	n.fails(3, "invalid_input", "-i", "pn0", "disconnect", "-s", "dev-a", "--ar", "nope", "--session-key", "1")
+	n.fails(2, "invalid_input", "-i", "pn0", "disconnect", "-s", "dev-a", "--session-key", "1")
+	// Without --session-key a Release with key 0 would be sent.
+	n.fails(2, "invalid_input", "-i", "pn0", "disconnect", "-s", "dev-a", "--ar", ar.UUID().String())
 }
 
 // diagnoseWhenRunning raises a diagnosis of slot/1 once the device has an

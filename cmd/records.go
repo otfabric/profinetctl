@@ -7,7 +7,6 @@ import (
 	"encoding/hex"
 	"errors"
 	"fmt"
-	"os"
 	"strings"
 	"time"
 
@@ -19,6 +18,7 @@ import (
 
 	clihelp "github.com/otfabric/profinetctl/internal/cli"
 	"github.com/otfabric/profinetctl/internal/errs"
+	"github.com/otfabric/profinetctl/internal/format"
 )
 
 // recordResult is the data of a record read.
@@ -183,7 +183,7 @@ func dataArg(data, file string) ([]byte, error) {
 	case data != "" && file != "":
 		return nil, errs.New(errs.KindUsage, errs.CodeInvalidFlagCombination, "--data and --data-file both give the data: give one", nil)
 	case file != "":
-		b, err := os.ReadFile(file)
+		b, err := readInputFile(file)
 		if err != nil {
 			return nil, errs.InvalidInput(errs.CodeInputFileOpenFailed, fmt.Sprintf("--data-file: %v", err), err)
 		}
@@ -295,7 +295,7 @@ func releaseAR(ctx context.Context, s *rpcSession, ar *controller.SupervisorAR) 
 	cctx, cancel := s.ctx(context.WithoutCancel(ctx))
 	defer cancel()
 	if err := ar.Release(cctx); err != nil {
-		_, _ = fmt.Fprintf(s.a.stderr, "warning: release of the device access AR: %v (the device closes it after its activity timeout)\n", err)
+		_, _ = fmt.Fprintf(s.a.stderr, "warning: release of the device access AR: %s (the device closes it after its activity timeout)\n", format.SafeText(err.Error()))
 	}
 }
 
@@ -418,12 +418,26 @@ func (r imResult) TableRows() [][]string {
 	return rows
 }
 
+// imRecord returns the record index of I&Mn; ok is false outside I&M0
+// to I&M4.
+func imRecord(n int) (idx pnio.Index, ok bool) {
+	if n < 0 || n > 4 {
+		return 0, false
+	}
+	return pnio.IndexIM0 + pnio.Index(n), true
+}
+
 // readIM reads one I&M record and decodes it.
 func readIM(ctx context.Context, s *rpcSession, slot, subslot uint16, n int) imEntry {
 	e := imEntry{Record: fmt.Sprintf("I&M%d", n)}
+	idx, ok := imRecord(n)
+	if !ok {
+		e.Error = fmt.Sprintf("I&M%d does not exist", n)
+		return e
+	}
 	cctx, cancel := s.ctx(ctx)
 	defer cancel()
-	b, err := s.rc.Read(cctx, rpc.NilUUID, controller.Record{Slot: slot, Subslot: subslot, Index: pnio.IndexIM0 + pnio.Index(n)}, 0)
+	b, err := s.rc.Read(cctx, rpc.NilUUID, controller.Record{Slot: slot, Subslot: subslot, Index: idx}, 0)
 	if err != nil {
 		e.Error = classify("", err).Error()
 		return e
@@ -478,7 +492,7 @@ func newIMCmd(a *app) *cobra.Command {
 				return err
 			}
 			for _, n := range which {
-				if n < 0 || n > 4 {
+				if _, ok := imRecord(n); !ok {
 					return errs.InvalidInput(errs.CodeInvalidInput, fmt.Sprintf("--record %d: I&M0 to I&M4 exist", n), nil)
 				}
 			}
@@ -571,7 +585,8 @@ I&M3 and --signature (54 octets in hex) I&M4.`,
 				var items []controller.WriteItem
 				var written []string
 				dap := func(n int) controller.Record {
-					return controller.Record{Slot: 0, Subslot: 1, Index: pnio.IndexIM0 + pnio.Index(n)}
+					idx, _ := imRecord(n) // n is 1 to 4 below
+					return controller.Record{Slot: 0, Subslot: 1, Index: idx}
 				}
 				if im1 {
 					m := pnio.IM1{}

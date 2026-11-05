@@ -87,7 +87,7 @@ Raw Ethernet access needs privileges: root or CAP_NET_RAW on Linux, access to
 			if a.timeout <= 0 {
 				return errs.InvalidInput(errs.CodeInvalidInput, "--timeout must be positive", nil)
 			}
-			return nil
+			return checkDurations(c)
 		},
 	}
 	pf := root.PersistentFlags()

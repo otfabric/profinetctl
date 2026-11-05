@@ -14,8 +14,8 @@ We will acknowledge your report within 48 hours and aim to provide a fix or miti
 
 | Version | Supported |
 |---------|-----------|
-| 0.6.x | Yes |
-| < 0.6 | No |
+| 0.8.x | Yes |
+| < 0.8 | No |
 
 ## Security Considerations
 
@@ -49,7 +49,15 @@ profinetctl needs raw Ethernet access (root, CAP_NET_RAW, `/dev/bpf*` or Npcap).
 
 ### Input files
 
-GSDML files are parsed with a size limit (64 MiB) and without external entities or DTD processing; model files are JSON. `--pcap` writes every frame, including record data, to the file you name.
+GSDML files are parsed with a size limit (64 MiB) and without external entities or DTD processing; model files are JSON. Model (`--model`), record data (`--data-file`) and expected topology (`--expect`) files above 16 MiB are refused. Paths come only from the command line: nothing a device sends names a local file.
+
+### Device data on the terminal
+
+Station names, LLDP strings, I&M text and other values come from the devices. Text and table output escape control characters and invalid UTF-8 in them (`\u001b`, `\xff`), so a device cannot send escape sequences to your terminal; table cells also escape newlines and tabs. Text output keeps a newline inside a value. JSON output is escaped by the JSON encoder.
+
+### Output files
+
+`--pcap` writes every frame, including record data, to the file you name. It, `gsdml generate -O` and `gsdml gsdx --extract -O` create files with mode 0600 (readable by you only) and replace an existing file's contents.
 
 ### Not certified
 

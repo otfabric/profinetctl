@@ -198,6 +198,15 @@ address. Without a filter every device answers; --station, --alias, --ip and
 --vendor/--device restrict the request to the devices that match.`,
 		Args: cobra.NoArgs,
 		RunE: func(c *cobra.Command, _ []string) error {
+			given := 0
+			for _, v := range []bool{station != "", alias != "", ip != "", vendor != "" || device != ""} {
+				if v {
+					given++
+				}
+			}
+			if given > 1 {
+				return errs.New(errs.KindUsage, errs.CodeInvalidFlagCombination, "--station, --alias, --ip and --vendor/--device are alternative filters: give one", nil)
+			}
 			filter := dcp.FilterAll()
 			var wantIP netip.Addr
 			switch {

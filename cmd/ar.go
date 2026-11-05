@@ -7,6 +7,7 @@ import (
 	"encoding/hex"
 	"errors"
 	"fmt"
+	"math"
 	"sort"
 	"strconv"
 	"strings"
@@ -80,6 +81,7 @@ func addAROptions(c *cobra.Command, o *arOptions) {
 	f.IntVar(&o.rpcPort, "rpc-port", rpc.Port, "UDP port of the controller's RPC server (devices send ApplicationReady to it)")
 	f.StringVar(&o.controllerName, "controller-name", "profinetctl", "Station name of the controller in the AR")
 	f.DurationVar(&o.activityTimeout, "activity-timeout", 10*time.Second, "CM initiator activity timeout")
+	markPositive(c, "connect-timeout", "activity-timeout")
 	f.UintSliceVar(&o.slots, "slot", nil, "Expect only these slots besides the DAP (shared device: another controller owns the rest); repeatable or comma-separated")
 	f.StringVar(&o.mrpRole, "mrp-role", "", "Give the device a media redundancy role before PrmEnd: client, manager or off (MRP records; needs a multiport device)")
 	f.StringVar(&o.mrpDomain, "mrp-domain-name", "", "With --mrp-role: the MRP domain name (default mrpdomain-1)")
@@ -107,12 +109,45 @@ func splitAddr(s string, n int) ([]string, error) {
 	return f, nil
 }
 
+// maxNameLen is the longest NameOfStation, MRP domain name and port ID
+// (240 octets, as dcp.ValidateStationName and go-profinet enforce).
+const maxNameLen = 240
+
+// checkNumbers validates the cycle, timer, port and name flags of an AR.
+// A zero cycle or factor would silently become go-profinet's default,
+// and a send clock times reduction ratio above 65535 does not fit the
+// 16-bit cycle counter step of the cyclic data.
+func (o *arOptions) checkNumbers() error {
+	bad := func(msg string) error { return errs.InvalidInput(errs.CodeInvalidInput, msg, nil) }
+	for _, f := range []struct {
+		name string
+		v    uint16
+	}{{"send-clock", o.sendClock}, {"reduction-ratio", o.reductionRatio}, {"watchdog-factor", o.watchdog}, {"data-hold-factor", o.dataHold}} {
+		if f.v == 0 {
+			return bad(fmt.Sprintf("--%s must be at least 1", f.name))
+		}
+	}
+	if step := uint32(o.sendClock) * uint32(o.reductionRatio); step > math.MaxUint16 {
+		return bad(fmt.Sprintf("--send-clock %d × --reduction-ratio %d = %d does not fit the 16-bit cycle counter", o.sendClock, o.reductionRatio, step))
+	}
+	if o.rpcPort < 1 || o.rpcPort > math.MaxUint16 {
+		return bad(fmt.Sprintf("--rpc-port %d: want 1 to 65535", o.rpcPort))
+	}
+	if err := dcp.ValidateStationName(o.controllerName); err != nil {
+		return errs.InvalidInput(errs.CodeInvalidInput, fmt.Sprintf("--controller-name %q: %v", o.controllerName, err), err)
+	}
+	return nil
+}
+
 func (o *arOptions) parse() (*parsedAR, error) {
 	if o.station == "" {
 		return nil, errs.New(errs.KindUsage, errs.CodeInvalidInput, "no device: give --station (the controller finds the device by its station name)", nil)
 	}
 	if err := dcp.ValidateStationName(o.station); err != nil {
 		return nil, errs.InvalidInput(errs.CodeInvalidInput, fmt.Sprintf("--station %q: %v", o.station, err), err)
+	}
+	if err := o.checkNumbers(); err != nil {
+		return nil, err
 	}
 	m, err := loadModel(o.gsdml, o.dap, o.modelFile)
 	if err != nil {
@@ -299,9 +334,9 @@ func (e arEvent) MarshalTextOutput() (string, error) {
 	case "alarm":
 		a := e.Alarm
 		var s strings.Builder
-		s.WriteString(fmt.Sprintf("%s alarm %s (%s) slot %d subslot 0x%04X seq %d", e.Time, a.Type, a.Priority, a.Slot, a.Subslot, a.Sequence))
+		fmt.Fprintf(&s, "%s alarm %s (%s) slot %d subslot 0x%04X seq %d", e.Time, a.Type, a.Priority, a.Slot, a.Subslot, a.Sequence)
 		for _, d := range a.Diagnosis {
-			s.WriteString(fmt.Sprintf("; channel 0x%04X %s %s", d.Channel, d.Error, d.Severity))
+			fmt.Fprintf(&s, "; channel 0x%04X %s %s", d.Channel, d.Error, d.Severity)
 		}
 		if len(a.Diagnosis) == 0 && a.Data != "" {
 			s.WriteString(" data " + a.Data)
@@ -407,7 +442,7 @@ func (a *app) establish(ctx context.Context, o *arOptions, p *parsedAR) (*arSess
 	}
 	if diffs := differences(dev.ModuleDiff()); len(diffs) > 0 {
 		msg := "the real configuration differs from the expected one: " + strings.Join(diffs, "; ")
-		_, _ = fmt.Fprintf(a.stderr, "warning: %s\n", msg)
+		_, _ = fmt.Fprintf(a.stderr, "warning: %s\n", format.SafeText(msg))
 		push(arEvent{Time: stamp(), Event: "module-diff", Error: msg})
 	}
 	return as, nil
@@ -682,16 +717,15 @@ func newIOCRCmd(a *app) *cobra.Command {
 // runFor waits until d elapses (0: until ctx is done) and reports whether
 // ctx ended the wait.
 func runFor(ctx context.Context, d time.Duration) bool {
-	var t <-chan time.Time
-	if d > 0 {
-		timer := time.NewTimer(d)
-		defer timer.Stop()
-		t = timer.C
+	if d <= 0 {
+		return ctx.Err() != nil
 	}
+	timer := time.NewTimer(d)
+	defer timer.Stop()
 	select {
 	case <-ctx.Done():
 		return true
-	case <-t:
+	case <-timer.C:
 		return false
 	}
 }
@@ -712,22 +746,25 @@ func (a *app) streamAR(c *cobra.Command, o *arOptions, duration, interval time.D
 		defer s.close()
 		if len(p.reparams) > 0 {
 			// The re-parameterization runs beside the stream; its result
-			// is an event.
-			go func() {
+			// is an event. It ends (cancelled) before the AR is closed.
+			rctx, rcancel := context.WithCancel(ctx)
+			var rwg sync.WaitGroup
+			defer func() { rcancel(); rwg.Wait() }()
+			rwg.Go(func() {
 				select {
 				case <-time.After(o.reparamAfter):
-				case <-ctx.Done():
+				case <-rctx.Done():
 					return
 				}
 				e := arEvent{Time: stamp(), Event: "reparameterized"}
-				if err := s.dev.Reparameterize(ctx, p.reparams); err != nil {
+				if err := s.dev.Reparameterize(rctx, p.reparams); err != nil {
 					e.Error = classify("", err).Error()
 				}
 				select {
 				case s.events <- e:
 				default:
 				}
-			}()
+			})
 		}
 		var mu sync.Mutex
 		write := func(v any) error {
@@ -982,6 +1019,7 @@ its CM activity timeout instead.`,
 	c.Flags().StringVar(&arUUID, "ar", "", "AR UUID (required)")
 	c.Flags().Uint16Var(&key, "session-key", 0, "Session key of the AR")
 	clihelp.MustMarkFlagRequired(c, "ar")
+	clihelp.MustMarkFlagRequired(c, "session-key")
 	return c
 }
 
@@ -1148,6 +1186,7 @@ func newIOCmd(a *app) *cobra.Command {
 	addAROptions(monitor, &mo)
 	monitor.Flags().DurationVar(&duration, "duration", 0, "How long to monitor (0: until interrupted)")
 	monitor.Flags().DurationVar(&interval, "interval", time.Second, "Interval between samples")
+	markPositive(monitor, "interval")
 	monitor.Flags().BoolVar(&changes, "changes", false, "Only write a sample when the inputs changed")
 
 	var to arOptions
@@ -1159,7 +1198,9 @@ func newIOCmd(a *app) *cobra.Command {
 		RunE: func(c *cobra.Command, _ []string) error {
 			return a.oneShot(c, &to, func(ctx context.Context, s *arSession) (any, error) {
 				start := time.Now()
-				runFor(ctx, statDuration)
+				if runFor(ctx, statDuration) {
+					return nil, classify("io statistics", ctx.Err())
+				}
 				el := time.Since(start)
 				st, _ := s.dev.State()
 				info, _ := s.dev.AR()
@@ -1171,6 +1212,7 @@ func newIOCmd(a *app) *cobra.Command {
 	}
 	addAROptions(statistics, &to)
 	statistics.Flags().DurationVar(&statDuration, "duration", 5*time.Second, "How long to run")
+	markPositive(statistics, "duration")
 	g.AddCommand(status, monitor, statistics)
 	return g
 }

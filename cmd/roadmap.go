@@ -6,7 +6,6 @@ import (
 	"context"
 	"encoding/json"
 	"fmt"
-	"os"
 	"sort"
 	"strconv"
 	"strings"
@@ -202,7 +201,26 @@ func parseLinks(specs []string) ([]controller.Link, error) {
 		}
 		out = append(out, controller.Link{A: a, B: b})
 	}
-	return out, nil
+	return out, checkLinks(out)
+}
+
+// checkLinks validates expected links, from --link or --expect: both
+// ends name a valid station and a port.
+func checkLinks(links []controller.Link) error {
+	for i, l := range links {
+		for _, end := range []controller.PortRef{l.A, l.B} {
+			if end.Station == "" || end.Port == "" {
+				return fmt.Errorf("link %d: both ends need a station and a port", i+1)
+			}
+			if err := dcp.ValidateStationName(end.Station); err != nil {
+				return fmt.Errorf("link %d: station %q: %w", i+1, end.Station, err)
+			}
+			if len(end.Port) > maxNameLen {
+				return fmt.Errorf("link %d: port ID of %d octets (at most %d)", i+1, len(end.Port), maxNameLen)
+			}
+		}
+	}
+	return nil
 }
 
 func newTopologyCheckCmd(a *app) *cobra.Command {
@@ -223,12 +241,15 @@ that could not be read). --expect reads a JSON list of {"a":{"station","port"},
 					return nil, errs.InvalidInput(errs.CodeInvalidInput, "--link "+err.Error(), err)
 				}
 				if file != "" {
-					b, err := os.ReadFile(file)
+					b, err := readInputFile(file)
 					if err != nil {
 						return nil, errs.InvalidInput(errs.CodeInvalidInput, fmt.Sprintf("--expect: %v", err), err)
 					}
 					var more []controller.Link
 					if err := json.Unmarshal(b, &more); err != nil {
+						return nil, errs.InvalidInput(errs.CodeInvalidInput, fmt.Sprintf("--expect %s: %v", file, err), err)
+					}
+					if err := checkLinks(more); err != nil {
 						return nil, errs.InvalidInput(errs.CodeInvalidInput, fmt.Sprintf("--expect %s: %v", file, err), err)
 					}
 					expected = append(expected, more...)
@@ -275,6 +296,14 @@ func parsePeerChecks(specs []string) ([]controller.PeerCheck, error) {
 		num, err := strconv.ParseUint(strings.TrimSpace(n), 10, 8)
 		if !ok || !ok2 || err != nil || num == 0 || st == "" || p == "" {
 			return nil, fmt.Errorf("%q: want PORT=STATION/PORT with a port number from 1", s)
+		}
+		// PDPortDataCheck carries both in 8-bit length fields; the names
+		// follow the NameOfStation rules (a port ID such as port-001).
+		if err := dcp.ValidateStationName(st); err != nil {
+			return nil, fmt.Errorf("%q: station %w", s, err)
+		}
+		if len(p) > maxNameLen {
+			return nil, fmt.Errorf("%q: port ID of %d octets (at most %d)", s, len(p), maxNameLen)
 		}
 		out = append(out, controller.PeerCheck{Subslot: model.SubslotPort1 + uint16(num-1), Station: st, Port: p})
 	}

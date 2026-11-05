@@ -5,6 +5,7 @@ package cmd
 import (
 	"context"
 	"fmt"
+	"net/netip"
 	"sort"
 	"strings"
 
@@ -216,10 +217,12 @@ left out) and the optional --gateway to the device. It is temporary unless
 			switch {
 			case clear && len(args) == 1:
 				return errs.New(errs.KindUsage, errs.CodeInvalidFlagCombination, "give ADDRESS or --clear, not both", nil)
+			case clear && gateway != "":
+				return errs.New(errs.KindUsage, errs.CodeInvalidFlagCombination, "--clear removes the address and the gateway: --gateway does not apply", nil)
 			case !clear && len(args) == 0:
 				return errs.New(errs.KindUsage, errs.CodeInvalidInput, "no address: give ADDRESS/PREFIX (or --clear to remove the address)", nil)
 			case clear:
-				suite, _ = suiteOf("0.0.0.0/0", "")
+				suite = dcp.IPSuite{Addr: netip.IPv4Unspecified(), Mask: netip.IPv4Unspecified(), Gateway: netip.IPv4Unspecified()}
 			default:
 				var err error
 				if suite, err = suiteOf(args[0], gateway); err != nil {

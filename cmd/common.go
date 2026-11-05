@@ -362,14 +362,53 @@ func suiteOf(addr, gateway string) (dcp.IPSuite, error) {
 	if !pfx.Addr().Is4() {
 		return dcp.IPSuite{}, fmt.Errorf("%q is not an IPv4 address", addr)
 	}
+	a := pfx.Addr()
+	if err := hostAddr(a, pfx); err != nil {
+		return dcp.IPSuite{}, fmt.Errorf("%q: %w", addr, err)
+	}
 	mask, _ := netip.AddrFromSlice(net.CIDRMask(pfx.Bits(), 32))
 	gw := netip.IPv4Unspecified()
 	if gateway != "" {
 		if gw, err = netip.ParseAddr(gateway); err != nil || !gw.Is4() {
 			return dcp.IPSuite{}, fmt.Errorf("gateway %q is not an IPv4 address", gateway)
 		}
+		// 0.0.0.0 is "no gateway"; any other must be a host of the subnet.
+		if !gw.IsUnspecified() {
+			if !pfx.Masked().Contains(gw) || gw == a {
+				return dcp.IPSuite{}, fmt.Errorf("gateway %s is not another host of %s", gw, pfx.Masked())
+			}
+			if err := hostAddr(gw, pfx); err != nil {
+				return dcp.IPSuite{}, fmt.Errorf("gateway %s: %w", gw, err)
+			}
+		}
 	}
-	return dcp.IPSuite{Addr: pfx.Addr(), Mask: mask, Gateway: gw}, nil
+	return dcp.IPSuite{Addr: a, Mask: mask, Gateway: gw}, nil
+}
+
+// hostAddr refuses an IPv4 address that cannot be a host's in pfx: the
+// unspecified, loopback, multicast and broadcast addresses, a /0 prefix,
+// and the network and broadcast address of a subnet of /30 or wider.
+func hostAddr(a netip.Addr, pfx netip.Prefix) error {
+	switch {
+	case a.IsUnspecified():
+		return errors.New("0.0.0.0 is no address (ip set --clear removes it)")
+	case a.IsLoopback(), a.IsMulticast(), a == netip.AddrFrom4([4]byte{255, 255, 255, 255}):
+		return fmt.Errorf("%s is not a host address", a)
+	case pfx.Bits() == 0:
+		return errors.New("a /0 prefix is no subnet")
+	}
+	if pfx.Bits() <= 30 {
+		b, m := a.As4(), net.CIDRMask(pfx.Bits(), 32)
+		var host, ones uint32
+		for i := range 4 {
+			host = host<<8 | uint32(b[i]&^m[i])
+			ones = ones<<8 | uint32(^m[i])
+		}
+		if host == 0 || host == ones {
+			return fmt.Errorf("%s is the network or broadcast address of %s", a, pfx.Masked())
+		}
+	}
+	return nil
 }
 
 // prefixLen returns the prefix length of a mask, -1 when it is not contiguous.

@@ -23,6 +23,76 @@ ending with a `---` line and no `---` line inside a section
 
 ---
 
+## v0.8.0
+
+**Date:** 2026-11-05
+**Previous release:** v0.7.2
+
+Hardening from a gosec/opengrep review (8 findings at low/low: 4 fixed in
+code; the file paths the operator names are 3 findings recorded as false
+positives) and a hostile-input review. Built on go-profinet v0.7.0; Go 1.26 or later.
+
+### Security
+
+- Text and table output escape control characters and invalid UTF-8 in
+  what devices send (station and type names, LLDP strings, I&M text,
+  errors): a device can no longer put terminal escape sequences on the
+  operator's screen, or add rows to a table. JSON output is unchanged.
+- Files profinetctl creates (`--pcap`, `gsdml generate -O`,
+  `gsdml gsdx --extract -O`) have mode 0600. A `--pcap` file is only
+  emptied once the interface is open, so a failed open keeps an existing
+  capture; a capture that could not be written completely is reported on
+  stderr.
+- Model, `--data-file` and `--expect` files above 16 MiB are refused.
+- `topology` reads the port data of at most 8 stations at a time.
+
+### Changed (exit codes and flags)
+
+These were accepted before and are now refused with exit 3
+(`invalid_input`) before anything is sent:
+
+- a negative value of any duration flag, and 0 for `--connect-timeout`,
+  `--activity-timeout`, `io statistics --duration` and
+  `io monitor --interval` (0 ran `io statistics` until interrupted);
+- `--send-clock`, `--reduction-ratio`, `--watchdog-factor` or
+  `--data-hold-factor` of 0 (silently replaced by the default before), a
+  send clock × reduction ratio above 65535, `--rpc-port` outside 1–65535;
+- a `--controller-name`, `--peer-check` station or `--link`/`--expect`
+  station that is not a valid NameOfStation, a port ID or
+  `--mrp-domain-name` above 240 octets, an `--expect` link without a
+  station or port;
+- `ip set` and `--assign-ip` with an address that is no host address
+  (0.0.0.0, loopback, multicast, broadcast, the network or broadcast
+  address of the subnet, a /0 prefix) or a gateway outside the subnet;
+- `mrp status --ports 0` (above 255 is a usage error, exit 2).
+
+Refused as a usage error (exit 2):
+
+- `disconnect` without `--session-key` (a Release with key 0 was sent);
+- two of `discover --station`, `--alias`, `--ip`, `--vendor/--device`
+  (only the first was used); `ip set --clear --gateway`;
+  `--mrp-domain-name` without `--mrp-role`.
+
+Other changes:
+
+- `io status --settle 0` takes the snapshot at once instead of waiting
+  for Ctrl-C.
+- `io statistics` interrupted with Ctrl-C exits 130, as
+  docs/exitcodes.md states for one-shot commands (it printed the counters
+  with exit 0).
+- `mrp status` reads each port with its own `--timeout` and lists the
+  ports it could not read in `errors` (exit 7) instead of leaving them
+  out; a port submodule the device does not have is still left out.
+- `connect --reparam`: the re-parameterization is cancelled before the
+  AR is released at the end of `--duration`.
+
+### Dependencies
+
+- go-profinet v0.7.0 (see its release notes), Go 1.26 floor, CI on Go
+  1.26 and 1.27, shared workflows v3.3.1.
+
+---
+
 ## v0.7.2
 
 **Date:** 2026-10-31
