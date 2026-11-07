@@ -85,7 +85,7 @@ A missing privilege exits with code 4 and the error code `permission_denied`. `p
 | `ip get`, `ip set ADDR/PREFIX [--gateway GW]`, `ip set --clear` | read or assign the IP suite |
 | `signal` | flash the device's LED |
 | `reset --mode MODE --confirm TARGET` | DCP ResetToFactory (`communication`, `application`, `engineering`, `all-data`, `device`, `factory`) |
-| `record read --index I [--slot --subslot --api]` | ReadImplicit of any record, as hex, with the block types it holds |
+| `record read --index I [--slot --subslot --api] [--max-length N]` | ReadImplicit of any record, as hex, with the block types it holds (`--max-length`: largest record accepted, default 4096) |
 | `record write --index I --data HEX \| --data-file FILE` | write a record in a device access AR, or with `--gsdml`/`--model` (and `--dap`) in an IOCAR, for devices without device access |
 | `im read [--record 0,1,...]` | I&M0, and the I&M1–4 it lists as supported |
 | `im write --function --location --date --descriptor --signature` | write I&M1–4 of the DAP (in an IOCAR with `--gsdml`/`--model`, as `record write`) |
@@ -102,7 +102,7 @@ A missing privilege exits with code 4 and the error code `permission_denied`. `p
 | `gsdml gsdx FILE [--extract PART [-O FILE]]` | inspect a GSDX container: parts, relationships, signature metadata (not verified), each GSDML part checked (exit code 7 on issues) |
 | `gsdml check FILE [--strict]` | the full check: errors, warnings and unvalidated content, each with its rule (exit code 7 on errors, with `--strict` on any issue) |
 | `gsdml modules FILE`, `gsdml submodules FILE` | the module and submodule types, with IO lengths and records |
-| `gsdml generate --model MODEL.json [-O FILE\|DIR]` | the GSDML file of a go-profinet device model |
+| `gsdml generate --model MODEL.json [--output-file FILE\|DIR] [--pnio-version V] [--device-access=false]` | the GSDML file of a go-profinet device model (`--output-file`/`-O`: a file, or a directory for the conventional name; `--pnio-version`: declared PNIO_Version, default V2.35; `--device-access`: declare DeviceAccessSupported, default true) |
 | `connect` | establish an AR as IO-Controller and run it: states and alarms are streamed, then a summary; `--slot N` expects only some modules (shared device: another controller owns the rest), `--peer-check PORT=STATION/PORT` has the device watch a port's neighbor, `--mrp-role client\|manager\|off` gives a multiport device its MRP role, `--reparam SLOT:SUBSLOT:INDEX:HEX` re-parameterizes the running AR (PrmBegin … PrmEnd) |
 | `ar` | establish an AR and show what Connect negotiated (AR, IOCRs, ModuleDiff) |
 | `iocr` | the layout of the IOCRs: data objects, IOPS and IOCS at their offsets |
