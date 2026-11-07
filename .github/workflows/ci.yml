@@ -18,7 +18,7 @@ jobs:
     uses: otfabric/.github/.github/workflows/go-ci.yml@v3.3.1
     with:
       run-govulncheck: true
-      policy-version: v1.4.1
+      policy-version: v1.4.2
       fuzz-time: 10s
       coverage-min: "90"
       codecov-name: profinetctl
