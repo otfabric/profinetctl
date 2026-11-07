@@ -28,6 +28,26 @@ Linux (amd64, arm64, armv7), macOS (Intel, Apple silicon) and Windows (amd64, ar
 
 From source (Go 1.26+): `go install github.com/otfabric/profinetctl@latest`
 
+### Shell completion
+
+```bash
+# bash (needs the bash-completion package)
+mkdir -p ~/.local/share/bash-completion/completions
+profinetctl completion bash > ~/.local/share/bash-completion/completions/profinetctl
+
+# zsh: a directory on your fpath, then restart the shell
+mkdir -p ~/.zsh/completions && profinetctl completion zsh > ~/.zsh/completions/_profinetctl
+# and once in ~/.zshrc:  fpath=(~/.zsh/completions $fpath); autoload -U compinit && compinit
+
+# fish
+mkdir -p ~/.config/fish/completions && profinetctl completion fish > ~/.config/fish/completions/profinetctl.fish
+```
+
+```powershell
+# PowerShell: add this line to your profile ($PROFILE)
+profinetctl completion powershell | Out-String | Invoke-Expression
+```
+
 ---
 
 ## Quick start
