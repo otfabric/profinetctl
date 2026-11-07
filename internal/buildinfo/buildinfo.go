@@ -110,10 +110,7 @@ func (i Info) JSON() string {
 	if i.Libraries == nil {
 		i.Libraries = []Library{}
 	}
-	data, err := json.Marshal(i)
-	if err != nil { // a struct of strings always encodes
-		panic(err)
-	}
+	data, _ := json.Marshal(i) // a struct of strings and string slices always encodes
 	return string(data)
 }
 
