@@ -50,7 +50,8 @@ func TestVersionPrintsTheBuiltVersion(t *testing.T) {
 	if want = strings.TrimPrefix(want, "v"); want == "" {
 		want = "dev"
 	}
-	if !strings.HasPrefix(output, "profinetctl "+want+" (") || strings.Count(output, "\n") != 1 {
+	if !strings.HasPrefix(output, "profinetctl "+want+" (") || strings.Count(output, "\n") != 1 ||
+		!strings.Contains(output, ", go-profinet ") {
 		t.Fatalf("output is not the line of profinetctl %s:\n%s", want, output)
 	}
 	output, code = run(t, "version", "--json")
