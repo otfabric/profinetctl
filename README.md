@@ -12,7 +12,21 @@ It is built for commissioning, troubleshooting and test benches. Output is text,
 
 > **Responsible use:** profinetctl sends real PROFINET frames. Only use it on devices and networks you own or are authorized to work on. `name set`, `ip set`, `reset`, `record write`, `im write` and `connect --output` change devices or what they drive; `reset` erases configuration and needs `--confirm`. See [SECURITY.md](SECURITY.md).
 
-**Quick links:** [Examples with real output](docs/EXAMPLES.md) · [Quick start](#quick-start) · [Commands](#commands) · [Privileges](#privileges) · [Connecting as IO-Controller](#connecting-as-io-controller) · [Output](#output) · [Limitations](#limitations)
+**Quick links:** [Install](#install) · [Examples with real output](docs/EXAMPLES.md) · [Quick start](#quick-start) · [Commands](#commands) · [Privileges](#privileges) · [Connecting as IO-Controller](#connecting-as-io-controller) · [Output](#output) · [Limitations](#limitations)
+
+## Install
+
+```bash
+curl -fsSL https://get.otfabric.io/profinetctl | sh
+```
+
+```powershell
+irm https://get.otfabric.io/profinetctl.ps1 | iex
+```
+
+Linux (amd64, arm64, armv7), macOS (Intel, Apple silicon) and Windows (amd64, arm64). The installer verifies the release's SHA-256 checksum, installs per user without `sudo` (`~/.local/bin`, Windows `%LOCALAPPDATA%\OTFabric\bin`), and upgrades in place when run again. Pin a version with `OTF_VERSION=x.y.z`; for CI, containers and device images use `OTF_UNMANAGED_INSTALL=<dir>`; all options: [otfabric/install](https://github.com/otfabric/install#options). For offline machines, the archives and checksums are on [Releases](https://github.com/otfabric/profinetctl/releases).
+
+From source (Go 1.26+): `go install github.com/otfabric/profinetctl@latest`
 
 ---
 
@@ -51,16 +65,6 @@ $ sudo profinetctl -i eth0 discover
 00:0e:cf:12:34:57  drive-3                  vendor 0x002A device 0x0310  192.168.0.13  Drive
 2 device(s)
 ```
-
-## Installation
-
-Build from source with Go 1.26 or later:
-
-```bash
-go install github.com/otfabric/profinetctl@latest
-```
-
-or clone and `make build-nocheck` (the binary is `bin/profinetctl`). `make build-all` builds Linux (x86-64, ARM64, ARMv7), macOS (x86-64, ARM64) and Windows (x86-64, ARM64) binaries into `release/`.
 
 ## Privileges
 
@@ -196,6 +200,7 @@ What go-profinet (and so profinetctl) supports and how it is tested against inde
 make test       # unit and integration tests (race detector)
 make coverage   # coverage, fails below 90 %
 make check      # everything CI runs
+make build      # checks, then bin/profinetctl (make build-nocheck skips the tests)
 ```
 
 The tests run profinetctl in process against go-profinet IO-Devices on a virtual Ethernet network, so they need neither privileges nor hardware. `make pnet-smoke` runs the DCP, record, I&M, diagnosis, topology and AR commands against an independent implementation, rt-labs p-net in Docker (the images of [profinet-interop](https://github.com/otfabric/profinet-interop)), on a real Linux bridge. See [CONTRIBUTING.md](CONTRIBUTING.md).
