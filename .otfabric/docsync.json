@@ -1,0 +1,9 @@
+{
+  "clis": [
+    {
+      "name": "profinetctl",
+      "manifest": "./cmd",
+      "exit_codes": "internal/errs"
+    }
+  ]
+}

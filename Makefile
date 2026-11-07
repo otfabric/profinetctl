@@ -1,4 +1,4 @@
-.PHONY: help all run test coverage cover compile cross lint lint-ci fmt fmt-check vet vuln build build-nocheck build-all release-all install clean pnet-smoke examples-doc release-notes-check e2e coverage-pkg-check fuzz
+.PHONY: help all run test coverage cover compile cross lint lint-ci fmt fmt-check vet vuln build build-nocheck build-all release-all install clean pnet-smoke examples-doc release-notes-check e2e coverage-pkg-check fuzz docs-check
 
 help: ## This help
 	@awk 'BEGIN {FS = ":.*?## "} /^[a-zA-Z0-9_-]+:.*?## / {printf "\033[36m%-30s\033[0m %s\n", $$1, $$2}' $(MAKEFILE_LIST)
@@ -35,6 +35,8 @@ COVERAGE_MIN ?= 90
 # Per-package floor (TEST-012), from the coverage.out of `make coverage`.
 COVER_PKG_MIN := 85
 FUZZTIME ?= 10s
+# docsync release of docs-check (DOC-008).
+DOCSYNC_VERSION := v0.2.0
 
 all: test build build-all ## Test and build the application
 
@@ -42,7 +44,7 @@ run: ## Run the application
 	@echo "Running $(APP_NAME)"
 	@go run $(APP_SRC)
 
-check: release-notes-check fmt fmt-check lint lint-ci vet cross vuln test coverage coverage-pkg-check ## Run all checks (format, lint, vet, 32-bit build, vulnerability scan, test, coverage)
+check: release-notes-check fmt fmt-check lint lint-ci vet cross vuln test coverage coverage-pkg-check docs-check ## Run all checks (format, lint, vet, 32-bit build, vulnerability scan, test, coverage)
 
 test: ## Run unit tests with race detector
 	@echo "Running unit tests (race detector)"
@@ -185,6 +187,10 @@ clean: ## Clean the build artifacts
 	@echo "Cleaning build artifacts"
 	@rm -rf $(BIN_DIR) coverage.out
 	@rm -f $(RELEASE_DIR)/*
+
+# The documents against the code (DOC-008): docsync, as docs-check.yml runs it.
+docs-check: ## Check that the documents agree with the code (docsync)
+	@go run github.com/otfabric/docsync@$(DOCSYNC_VERSION) check .
 
 release-notes-check: ## Fail when RELEASE.md is not in the otfabric release-notes format (## vX.Y.Z sections ending with ---)
 	@scripts/release-notes.sh --check
