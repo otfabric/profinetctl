@@ -12,10 +12,10 @@ import (
 
 // Injected at link time (see Makefile): -X main.version=... etc.
 var (
-	version   = "dev"
-	tag       = ""
-	commit    = ""
-	buildDate = ""
+	version   string
+	tag       string
+	commit    string
+	buildDate string
 )
 
 // exit ends the process; a test replaces it.

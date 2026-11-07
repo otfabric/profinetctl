@@ -6,11 +6,14 @@ import (
 	"errors"
 	"os"
 	"path/filepath"
+	"runtime"
 	"strings"
 	"testing"
 
 	"github.com/otfabric/go-profinet/dcp"
 	"github.com/otfabric/go-profinet/pcap"
+
+	"github.com/otfabric/profinetctl/internal/buildinfo"
 )
 
 func TestInterfaces(t *testing.T) {
@@ -318,13 +321,39 @@ func TestPcap(t *testing.T) {
 
 func TestVersionAndCompletion(t *testing.T) {
 	n := newTestNet(t)
-	SetBuildMeta("v1.2.3", "v1.2.3", "abc1234", "2026-10-26")
-	defer SetBuildMeta("dev", "", "", "")
-	out := n.ok("version")
-	for _, want := range []string{"profinetctl version: v1.2.3", "tag:         v1.2.3", "commit:      abc1234", "build date:  2026-10-26", "go version:", "platform:"} {
-		if !strings.Contains(out, want) {
-			t.Fatalf("version lacks %q:\n%s", want, out)
+	const sha = "1802d0f9afe8642d1e278120b76fcdfac967cb9e"
+	SetBuildMeta("v1.2.3", "v1.2.3", sha, "2026-10-26T12:00:00Z")
+	defer SetBuildMeta("", "", "", "")
+	libText, libJSON := "", []string{}
+	for _, l := range buildinfo.Get("profinetctl").Libraries {
+		libText += l.Name + " " + l.Version + ", "
+		libJSON = append(libJSON, `{"name":"`+l.Name+`","version":"`+l.Version+`"}`)
+	}
+	// The libraries come from the build info, which test binaries of Go 1.26 lack:
+	// the e2e suite checks them on the real binary.
+	platform := runtime.GOOS + "/" + runtime.GOARCH
+	text := "profinetctl 1.2.3 (tag v1.2.3, commit " + sha + ", built 2026-10-26T12:00:00Z, " + libText + runtime.Version() + ", " + platform + ")\n"
+	js := `{"name":"profinetctl","version":"1.2.3","tag":"v1.2.3","commit":"` + sha + `","built":"2026-10-26T12:00:00Z","libraries":[` +
+		strings.Join(libJSON, ",") + `],"go":"` + runtime.Version() + `","platform":"` + platform + "\"}\n"
+	if out := n.ok("version"); out != text {
+		t.Fatalf("version:\n got %q\nwant %q", out, text)
+	}
+	for _, args := range [][]string{{"version", "--json"}, {"version", "-o", "json"}, {"version", "--format", "table", "--json"}} {
+		if out := n.ok(args...); out != js {
+			t.Fatalf("%v:\n got %q\nwant %q", args, out, js)
 		}
+	}
+	if out := n.ok("version", "--format", "table"); out != text {
+		t.Fatalf("version --format table: %q", out)
+	}
+	t.Setenv(EnvFormat, "json")
+	if out := n.ok("version"); out != js {
+		t.Fatalf("%s=json version: %q", EnvFormat, out)
+	}
+	t.Setenv(EnvFormat, "")
+	SetBuildMeta("", "", "", "")
+	if out := n.ok("version"); strings.Contains(out, "tag ") || !strings.Contains(out, "built unknown, ") || strings.Count(out, "\n") != 1 {
+		t.Fatalf("version of a development build: %q", out)
 	}
 	for _, sh := range []string{"bash", "zsh", "fish", "powershell"} {
 		if out := n.ok("completion", sh); !strings.Contains(out, "profinetctl") {
@@ -333,7 +362,7 @@ func TestVersionAndCompletion(t *testing.T) {
 	}
 	n.fails(2, "", "completion", "tcsh")
 	// Completion of flags with fixed values.
-	out = n.ok("__complete", "reset", "--mode", "")
+	out := n.ok("__complete", "reset", "--mode", "")
 	if !strings.Contains(out, "factory") || !strings.Contains(out, "communication") {
 		t.Fatalf("mode completion %q", out)
 	}
