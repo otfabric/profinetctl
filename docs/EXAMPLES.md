@@ -525,10 +525,6 @@ reset: e2:d7:d0:a5:23:0e otf-b → communication
 
 ```console
 $ profinetctl version
-profinetctl version: v0.6.0
-commit:      2e52e76
-go-profinet: v0.6.0
-go version:  go1.27.3
-platform:    linux/arm64
+profinetctl 0.6.0 (commit 2e52e76efa8db321d043877ebd8049d1d0c1f595, built unknown, go-profinet 0.6.0, go1.27.3, linux/arm64)
 ```
 

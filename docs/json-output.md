@@ -44,6 +44,7 @@ These conventions are a **stable contract** for scripting. Field names are snake
 | `iocr` | `{"ar_uuid", "entries": [{"iocr", "frame_id", "kind": "data" \| "iocs", "slot", "subslot", "offset", "length"}]}` |
 | `io status` | `{"station", "state", "inputs": [{"slot", "subslot", "data", "iops"}], "outputs": [{"slot", "subslot", "iocs"}]}`; a status is `"good"`, `"bad (0x..)"` or `"-"` (not received yet) |
 | `io statistics` | `{"station", "state", "duration", "cycle", "stats": {...}, "frames_per_second"}` |
+| `version` (`--json`, `-o json`) | `name`, `version` (no `v`; `"dev"` for a development build), `tag` (`""` without one), `commit` (`"unknown"` when not known), `built` (RFC 3339, or `"unknown"`), `libraries` (the OT Fabric libraries of the build: `name`, `version`), `go`, `platform` (`"linux/amd64"`), in that order |
 
 ## Streams (JSON Lines)
 

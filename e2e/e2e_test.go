@@ -42,12 +42,20 @@ func TestVersionPrintsTheBuiltVersion(t *testing.T) {
 	if code != 0 {
 		t.Fatalf("exit code %d, want 0\n%s", code, output)
 	}
-	want := os.Getenv("PROFINETCTL_E2E_VERSION")
-	if want == "" {
+	// make e2e sets the variable to the tag of HEAD, empty when HEAD has none: then dev.
+	want, ok := os.LookupEnv("PROFINETCTL_E2E_VERSION")
+	if !ok {
 		t.Fatal("PROFINETCTL_E2E_VERSION is not set; run make e2e")
 	}
-	if !strings.Contains(output, "profinetctl") || !strings.Contains(output, want) {
-		t.Fatalf("output does not name profinetctl %s:\n%s", want, output)
+	if want = strings.TrimPrefix(want, "v"); want == "" {
+		want = "dev"
+	}
+	if !strings.HasPrefix(output, "profinetctl "+want+" (") || strings.Count(output, "\n") != 1 {
+		t.Fatalf("output is not the line of profinetctl %s:\n%s", want, output)
+	}
+	output, code = run(t, "version", "--json")
+	if code != 0 || !strings.HasPrefix(output, `{"name":"profinetctl","version":"`+want+`","tag":`) {
+		t.Fatalf("version --json: exit %d\n%s", code, output)
 	}
 }
 

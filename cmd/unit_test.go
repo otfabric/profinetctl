@@ -10,7 +10,6 @@ import (
 	"net"
 	"net/netip"
 	"os"
-	"runtime/debug"
 	"strings"
 	"syscall"
 	"testing"
@@ -73,23 +72,6 @@ func TestClassify(t *testing.T) {
 	}
 }
 
-func TestVersionOf(t *testing.T) {
-	t.Parallel()
-	info := &debug.BuildInfo{Main: debug.Module{Version: "v0.3.1"}, Settings: []debug.BuildSetting{{Key: "vcs.revision", Value: "0123456789abcdef"}}}
-	if v, c := versionOf("dev", "", info); v != "v0.3.1" || c != "0123456" {
-		t.Fatalf("from build info: %s %s", v, c)
-	}
-	if v, c := versionOf("v1.0.0", "abc", info); v != "v1.0.0" || c != "abc" {
-		t.Fatalf("from ldflags: %s %s", v, c)
-	}
-	if v, c := versionOf(" dev ", "", nil); v != "dev" || c != "" {
-		t.Fatalf("without build info: %s %s", v, c)
-	}
-	if v, _ := versionOf("", "", &debug.BuildInfo{Main: debug.Module{Version: "(devel)"}}); v != "" {
-		t.Fatalf("devel: %q", v)
-	}
-}
-
 func TestDifferences(t *testing.T) {
 	t.Parallel()
 	if differences(nil) != nil {
@@ -146,7 +128,7 @@ func TestOSBackend(t *testing.T) {
 	os.Stdout = stdout
 	var out bytes.Buffer
 	_, _ = out.ReadFrom(r)
-	if code != 0 || !strings.Contains(out.String(), "profinetctl version") {
+	if code != 0 || !strings.HasPrefix(out.String(), "profinetctl ") {
 		t.Fatalf("execute %d %q", code, out.String())
 	}
 }

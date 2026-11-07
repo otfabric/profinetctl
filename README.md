@@ -30,6 +30,8 @@ From source (Go 1.26+): `go install github.com/otfabric/profinetctl@latest`
 
 ### Shell completion
 
+Commands, flags, the values of `--format`, `--mode`, `--mrp-role` and `im read --record`, the Ethernet interfaces of `--interface`, and GSDML, GSDX, model, expected-link and pcap files complete.
+
 ```bash
 # bash (needs the bash-completion package)
 mkdir -p ~/.local/share/bash-completion/completions
@@ -133,7 +135,7 @@ A missing privilege exits with code 4 and the error code `permission_denied`. `p
 | `io status [--settle D]`, `io monitor [--interval D] [--changes]`, `io statistics [--duration D]` | a snapshot of the inputs and output statuses; the inputs at an interval (only changes with `--changes`); the cyclic counters over 5 s |
 | `alarms` | establish an AR and stream the device's alarms |
 | `disconnect --ar UUID --session-key N` | release an AR another controller left behind |
-| `version`, `completion SHELL` | version; shell completion for bash, zsh, fish and PowerShell |
+| `version [--json]`, `completion SHELL` | the version on one line (or JSON), with the go-profinet version; shell completion for bash, zsh, fish and PowerShell |
 
 Every command has `--help`. A device is selected by `--station NAME` (resolved with DCP Identify, which waits `--wait`, default 1s; several answers are an error) or `--mac`; `--ip` overrides the RPC address it reports.
 

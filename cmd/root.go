@@ -9,31 +9,22 @@ import (
 	"io"
 	"os"
 	"os/signal"
-	"runtime"
-	"runtime/debug"
 	"strings"
 	"syscall"
 	"time"
 
 	"github.com/spf13/cobra"
 
+	"github.com/otfabric/profinetctl/internal/buildinfo"
 	clihelp "github.com/otfabric/profinetctl/internal/cli"
 	"github.com/otfabric/profinetctl/internal/errs"
 	"github.com/otfabric/profinetctl/internal/format"
 	"github.com/otfabric/profinetctl/internal/runner"
 )
 
-// buildMeta holds link-time metadata set from main via SetBuildMeta.
-var buildMeta struct {
-	version, tag, commit, buildDate string
-}
-
 // SetBuildMeta is called from main before Execute; values come from ldflags -X main.*.
 func SetBuildMeta(version, tag, commit, buildDate string) {
-	buildMeta.version = version
-	buildMeta.tag = tag
-	buildMeta.commit = commit
-	buildMeta.buildDate = buildDate
+	buildinfo.Set(version, tag, commit, buildDate)
 }
 
 // Environment variables that set the defaults of the global flags.
@@ -132,8 +123,9 @@ Raw Ethernet access needs privileges: root or CAP_NET_RAW on Linux, access to
 		newHelloCmd(a),
 		newMRPCmd(a),
 		newCompletionCmd(),
-		newVersionCmd(),
+		newVersionCmd(a),
 	)
+	registerCompletions(root)
 	return root
 }
 
@@ -158,68 +150,28 @@ func envDuration(name string, def time.Duration) time.Duration {
 	return d
 }
 
-func newVersionCmd() *cobra.Command {
-	return &cobra.Command{
+func newVersionCmd(a *app) *cobra.Command {
+	var asJSON bool
+	c := &cobra.Command{
 		Use:   "version",
 		Short: "Print the version of profinetctl",
-		Args:  cobra.NoArgs,
+		Long: `Print the version of profinetctl on one line: version, tag, commit, build date, the
+OT Fabric libraries it is built with (go-profinet), Go version and platform. --json, or
+--format json, prints it as one JSON object.`,
+		Example: `  profinetctl version
+  profinetctl version --json`,
+		Args: cobra.NoArgs,
 		Run: func(cmd *cobra.Command, _ []string) {
-			out := cmd.OutOrStdout()
-			info, _ := debug.ReadBuildInfo()
-			ver, commit := versionOf(buildMeta.version, buildMeta.commit, info)
-			if ver == "" {
-				ver = "(unknown)"
+			info := buildinfo.Get("profinetctl")
+			line := info.String()
+			if f, err := format.Parse(a.format); asJSON || (err == nil && f == format.FormatJSON) {
+				line = info.JSON()
 			}
-			_, _ = fmt.Fprintf(out, "profinetctl version: %s\n", ver)
-			if s := strings.TrimSpace(buildMeta.tag); s != "" {
-				_, _ = fmt.Fprintf(out, "tag:         %s\n", s)
-			}
-			if commit != "" {
-				_, _ = fmt.Fprintf(out, "commit:      %s\n", commit)
-			}
-			if s := strings.TrimSpace(buildMeta.buildDate); s != "" {
-				_, _ = fmt.Fprintf(out, "build date:  %s\n", s)
-			}
-			if info != nil {
-				for _, d := range info.Deps {
-					if d.Path == "github.com/otfabric/go-profinet" {
-						_, _ = fmt.Fprintf(out, "go-profinet: %s\n", d.Version)
-					}
-				}
-			}
-			_, _ = fmt.Fprintf(out, "go version:  %s\n", runtime.Version())
-			_, _ = fmt.Fprintf(out, "platform:    %s/%s\n", runtime.GOOS, runtime.GOARCH)
+			_, _ = fmt.Fprintln(cmd.OutOrStdout(), line)
 		},
 	}
-}
-
-// devVersion is the version of a binary built without the ldflags of the Makefile.
-const devVersion = "dev"
-
-// versionOf returns the version and commit to report: the ldflags of the Makefile and
-// of the release set them; a binary built without them reports what the go toolchain
-// records (the module version and the VCS revision).
-func versionOf(version, commit string, info *debug.BuildInfo) (string, string) {
-	version, commit = strings.TrimSpace(version), strings.TrimSpace(commit)
-	if info == nil {
-		return version, commit
-	}
-	if version == devVersion || version == "" {
-		if v := info.Main.Version; v != "" && v != "(devel)" {
-			version = v
-		}
-	}
-	if commit == "" {
-		for _, s := range info.Settings {
-			if s.Key == "vcs.revision" {
-				commit = s.Value
-				if len(commit) > 7 {
-					commit = commit[:7]
-				}
-			}
-		}
-	}
-	return version, commit
+	c.Flags().BoolVar(&asJSON, "json", false, "Print the version as one JSON object")
+	return c
 }
 
 // Execute runs the root command and returns the process exit code (main should call os.Exit).

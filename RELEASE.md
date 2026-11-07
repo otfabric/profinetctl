@@ -23,6 +23,44 @@ ending with a `---` line and no `---` line inside a section
 
 ---
 
+## v0.9.0
+
+**Date:** 2026-11-07
+**Previous release:** v0.8.0
+
+### Summary
+
+`version` prints one line, as every OT Fabric CLI does, or JSON with
+`--json` (or `-o json`). Shell completion completes `--mrp-role`, the I&M
+records and files by type, and no longer offers file names for addresses,
+names and numbers.
+
+### Added
+
+- `version --json`, and `version` with `--format json`/`-o json` or
+  `PROFINETCTL_FORMAT=json`: `{"name","version","tag","commit","built","libraries","go","platform"}`,
+  every key present; `libraries` lists go-profinet with its version.
+- Completion of `--mrp-role` (client, manager, off) and `im read --record`
+  (0-4), next to `--format`, `--mode` and `--interface`. GSDML arguments
+  and `--gsdml` complete `.xml` files, `gsdml gsdx` `.gsdx`, `--model` and
+  `--expect` `.json`, `--pcap` `.pcap`; `--data-file` and `--output-file`
+  any file. Every other value flag and argument completes nothing instead
+  of file names.
+
+### Changed
+
+- `version` prints one line: `profinetctl 0.9.0 (tag v0.9.0, commit <sha>,
+  built <date>, go-profinet 0.7.0, go1.26.10, linux/amd64)`, instead of one
+  line per field. No leading `v`; the full commit (from the build, or from
+  Go's build information with `-dirty` for a modified tree); the tag is left
+  out when there is none; a development build (a pseudo-version too) is
+  `dev`, built `unknown`. Scripts that read `profinetctl version: …` should
+  use `version --json`.
+- `make build` injects the full commit SHA, and a version and tag only when
+  HEAD is exactly on a tag (otherwise the binary reports `dev`).
+
+---
+
 ## v0.8.0
 
 **Date:** 2026-11-05
