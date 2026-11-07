@@ -136,14 +136,14 @@ build-all: ## Build the application for all architectures
 		cpu=$${rest%%/*}; \
 		variant=$${rest#*/}; \
 		if [ "$$os" = "windows" ]; then \
-			echo "Building $(APP_NAME)-$(VERSION)-$$os-$$cpu.exe..."; \
-			GOOS=$$os GOARCH=$$cpu go build $(LDFLAGS) -o $(RELEASE_DIR)/$(APP_NAME)-$(VERSION)-$$os-$$cpu.exe $(APP_SRC); \
+			echo "Building $(APP_NAME)-$(or $(VERSION),dev)-$$os-$$cpu.exe..."; \
+			GOOS=$$os GOARCH=$$cpu go build $(LDFLAGS) -o $(RELEASE_DIR)/$(APP_NAME)-$(or $(VERSION),dev)-$$os-$$cpu.exe $(APP_SRC); \
 		elif [ "$$cpu" = "arm" ] && [ "$$variant" = "v7" ]; then \
-			echo "Building $(APP_NAME)-$(VERSION)-$$os-armv7..."; \
-			GOOS=$$os GOARCH=$$cpu GOARM=7 go build $(LDFLAGS) -o $(RELEASE_DIR)/$(APP_NAME)-$(VERSION)-$$os-armv7 $(APP_SRC); \
+			echo "Building $(APP_NAME)-$(or $(VERSION),dev)-$$os-armv7..."; \
+			GOOS=$$os GOARCH=$$cpu GOARM=7 go build $(LDFLAGS) -o $(RELEASE_DIR)/$(APP_NAME)-$(or $(VERSION),dev)-$$os-armv7 $(APP_SRC); \
 		else \
-			echo "Building $(APP_NAME)-$(VERSION)-$$os-$$cpu..."; \
-			GOOS=$$os GOARCH=$$cpu go build $(LDFLAGS) -o $(RELEASE_DIR)/$(APP_NAME)-$(VERSION)-$$os-$$cpu $(APP_SRC); \
+			echo "Building $(APP_NAME)-$(or $(VERSION),dev)-$$os-$$cpu..."; \
+			GOOS=$$os GOARCH=$$cpu go build $(LDFLAGS) -o $(RELEASE_DIR)/$(APP_NAME)-$(or $(VERSION),dev)-$$os-$$cpu $(APP_SRC); \
 		fi \
 	done
 
@@ -155,15 +155,15 @@ release-all: build-all ## Package the build binaries into tar.gz (Unix) or zip (
 		cpu=$${rest%%/*}; \
 		variant=$${rest#*/}; \
 		if [ "$$os" = "windows" ]; then \
-			bin=$(APP_NAME)-$(VERSION)-$$os-$$cpu.exe; \
-			echo "Packaging $$bin into $(APP_NAME)-$(VERSION)-$$os-$$cpu.zip..."; \
-			cd $(RELEASE_DIR) && zip -q $(APP_NAME)-$(VERSION)-$$os-$$cpu.zip $$bin && cd - > /dev/null; \
+			bin=$(APP_NAME)-$(or $(VERSION),dev)-$$os-$$cpu.exe; \
+			echo "Packaging $$bin into $(APP_NAME)-$(or $(VERSION),dev)-$$os-$$cpu.zip..."; \
+			cd $(RELEASE_DIR) && zip -q $(APP_NAME)-$(or $(VERSION),dev)-$$os-$$cpu.zip $$bin && cd - > /dev/null; \
 		elif [ "$$cpu" = "arm" ] && [ "$$variant" = "v7" ]; then \
-			bin=$(APP_NAME)-$(VERSION)-$$os-armv7; \
+			bin=$(APP_NAME)-$(or $(VERSION),dev)-$$os-armv7; \
 			echo "Packaging $$bin.tar.gz..."; \
 			tar czf $(RELEASE_DIR)/$$bin.tar.gz -C $(RELEASE_DIR) $$bin; \
 		else \
-			bin=$(APP_NAME)-$(VERSION)-$$os-$$cpu; \
+			bin=$(APP_NAME)-$(or $(VERSION),dev)-$$os-$$cpu; \
 			echo "Packaging $$bin.tar.gz..."; \
 			tar czf $(RELEASE_DIR)/$$bin.tar.gz -C $(RELEASE_DIR) $$bin; \
 		fi; \
