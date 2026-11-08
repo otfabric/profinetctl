@@ -400,7 +400,7 @@ func berOID(b []byte) string {
 	var v uint64
 	first := true
 	for i, c := range b {
-		if v > 1<<56 {
+		if v > 0xFFFFFFFF>>7 { // sub-identifiers are 32-bit (SNMP)
 			return fmt.Sprintf("%x", b)
 		}
 		v = v<<7 | uint64(c&0x7F)

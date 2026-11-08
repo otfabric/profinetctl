@@ -23,6 +23,43 @@ ending with a `---` line and no `---` line inside a section
 
 ---
 
+## v0.10.0
+
+**Date:** 2026-11-08
+**Previous release:** v0.9.0
+
+### Summary
+
+profinetctl is built on go-profinet v0.8.0, which was validated against
+traffic recorded from real equipment (a SIMATIC S7-1500 CPU 1515-2 PN and
+older Siemens, GE and switch devices; go-profinet's testdata/captures).
+`lldp neighbors` shows the management address's interface number and OID,
+and the go-profinet fixes reach every command.
+
+### Added
+
+- `lldp neighbors` JSON: `management_if_index` and `management_oid` (dotted,
+  for example `1.3.6.1.4.1.24686`, the PNO enterprise OID Siemens devices
+  send), both omitted when absent ([docs/json-output.md](docs/json-output.md)).
+
+### Changed (from go-profinet v0.8.0)
+
+- `discover` and every DCP output: a NameOfStation or TypeOfStation padded
+  with NULs (an S7-300 pads its name to 108 octets) is shown without the
+  padding.
+- `lldp neighbors`, `topology`: an LLDPDU with a second Chassis ID, Port ID
+  or TTL TLV is ignored (IEEE 802.1AB); a non-IPv4 management address no
+  longer hides the rest of the TLV list.
+- `alarms`, `connect`, `io`: profinetctl as IO-Controller answers a
+  device's ERR-RTA with ERR-RTA "AR alarm.ind(err)" (`CF 81 FD 0B`), as a
+  CPU 1515-2 PN does.
+
+### Dependencies
+
+- go-profinet v0.7.0 → v0.8.0.
+
+---
+
 ## v0.9.0
 
 **Date:** 2026-11-07
