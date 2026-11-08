@@ -32,6 +32,11 @@ type neighborView struct {
 	SystemDescription string `json:"system_description,omitempty"`
 	PortDescription   string `json:"port_description,omitempty"`
 	ManagementAddress string `json:"management_address,omitempty"`
+	// ManagementIfIndex and ManagementOID are the interface number and the
+	// object identifier of the management address TLV (Siemens devices
+	// send their port number and the PNO enterprise OID 1.3.6.1.4.1.24686).
+	ManagementIfIndex uint32 `json:"management_if_index,omitempty"`
+	ManagementOID     string `json:"management_oid,omitempty"`
 	ChassisMAC        string `json:"chassis_mac,omitempty"`
 	// Alias is the PROFINET AliasName of the device connected to this
 	// neighbor's port: the name a device without station name answers to.
@@ -80,6 +85,8 @@ func neighborViews(ns []lldp.Neighbor) []neighborView {
 			SystemName: n.Frame.SystemName, SystemDescription: n.Frame.SystemDescription, PortDescription: n.Frame.PortDescription, Alias: n.Alias()}
 		if n.Frame.ManagementAddr.IsValid() {
 			v.ManagementAddress = n.Frame.ManagementAddr.String()
+			v.ManagementIfIndex = n.Frame.ManagementIfIndex
+			v.ManagementOID = berOID(n.Frame.ManagementOID)
 		}
 		if n.Frame.ChassisMAC != nil {
 			v.ChassisMAC = n.Frame.ChassisMAC.String()
@@ -381,4 +388,36 @@ without an IP address cannot be read. Exit code 7 when some could not be read.`,
 	c.Flags().DurationVar(&lldpWait, "lldp-wait", 0, "Also listen this long for the host's own LLDP neighbor")
 	c.AddCommand(newTopologyCheckCmd(a))
 	return c
+}
+
+// berOID returns a BER-encoded object identifier (without tag and length)
+// in dotted form, or the octets in hex when they are no valid OID.
+func berOID(b []byte) string {
+	if len(b) == 0 {
+		return ""
+	}
+	var parts []string
+	var v uint64
+	first := true
+	for i, c := range b {
+		if v > 0xFFFFFFFF>>7 { // sub-identifiers are 32-bit (SNMP)
+			return fmt.Sprintf("%x", b)
+		}
+		v = v<<7 | uint64(c&0x7F)
+		if c&0x80 != 0 {
+			if i == len(b)-1 {
+				return fmt.Sprintf("%x", b)
+			}
+			continue
+		}
+		if first {
+			x := min(v/40, 2)
+			parts = append(parts, fmt.Sprint(x), fmt.Sprint(v-40*x))
+			first = false
+		} else {
+			parts = append(parts, fmt.Sprint(v))
+		}
+		v = 0
+	}
+	return strings.Join(parts, ".")
 }

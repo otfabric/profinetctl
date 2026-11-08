@@ -29,7 +29,7 @@ These conventions are a **stable contract** for scripting. Field names are snake
 | `diagnostics` | `{"mac", "station", "entries": [{"api", "slot", "subslot", "channel", "direction", "severity", "error_type", "error", "ext_error_type", "ext_add_value", "qualifier", "usi", "vendor_data"}]}` |
 | `device info` | `{"device", "im0", "modules": [{"api", "slot", "module_ident_number", "submodules": [{"subslot", "submodule_ident_number"}]}], "errors"}` |
 | `status` | `{"device", "dcp", "rpc", "diagnoses": {"fault": n, ...}, "ports": [{"subslot", "port_id", "link", "peer"}], "errors"}` |
-| `lldp neighbors` | `{"interface", "neighbors": [{"mac", "chassis_id", "port_id", "ttl", "system_name", "system_description", "port_description", "management_address", "chassis_mac", "alias", "line_delay"}]}` |
+| `lldp neighbors` | `{"interface", "neighbors": [{"mac", "chassis_id", "port_id", "ttl", "system_name", "system_description", "port_description", "management_address", "management_if_index", "management_oid", "chassis_mac", "alias", "line_delay"}]}` |
 | `topology` | `{"host_neighbors", "devices": [{"station", "mac", "ip", "ports": [{"subslot", "port_id", "link", "peers": [{"station", "port", "mac", "line_delay"}]}], "error"}], "links": [{"a", "a_port", "b", "b_port"}]}` |
 | `gsdml inspect` | `{"file", "schema_version", "vendor_id", "device_id", "vendor_name", "family", "device_access_points": [...], "valid", "issues"}` |
 | `gsdml validate` | `{"file", "valid", "issues": [{"path", "message", "severity", "rule"}], "scope"}`; `severity` is `"error"` (validate reports errors only), `rule` names the rule broken: `"structure"` (or absent), `"reference"` or `"io-data-length"` (input or output data too long for an RT frame) |

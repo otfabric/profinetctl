@@ -5,6 +5,7 @@ package cmd
 import (
 	"bytes"
 	"context"
+	"encoding/hex"
 	"errors"
 	"fmt"
 	"net"
@@ -243,5 +244,20 @@ func TestHelpers(t *testing.T) {
 	}
 	if (&target{}).describe() != "MAC " || (&target{}).matches("", dcp.Identity{}) {
 		t.Error("target")
+	}
+}
+
+func TestBerOID(t *testing.T) {
+	for in, want := range map[string]string{
+		"":                     "",
+		"2b0601040181c06e":     "1.3.6.1.4.1.24686",
+		"8837":                 "2.999",
+		"2b81":                 "2b81", // cut inside a sub-identifier
+		"2bffffffffffffffff7f": "2bffffffffffffffff7f",
+	} {
+		b, _ := hex.DecodeString(in)
+		if got := berOID(b); got != want {
+			t.Errorf("berOID(%s) = %q, want %q", in, got, want)
+		}
 	}
 }

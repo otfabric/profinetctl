@@ -252,7 +252,7 @@ func TestLLDPAndTopology(t *testing.T) {
 			a = nb
 		}
 	}
-	if a.PortID != "port-001.dev-a" || a.ManagementAddress != "192.168.0.10" || a.TTL == 0 || a.Alias == "" {
+	if a.PortID != "port-001.dev-a" || a.ManagementAddress != "192.168.0.10" || a.ManagementIfIndex != 1 || a.ManagementOID != "" || a.TTL == 0 || a.Alias == "" {
 		t.Fatalf("dev-a %+v", a)
 	}
 	out := n.ok("-i", "pn0", "lldp", "neighbors", "--wait", "400ms")
