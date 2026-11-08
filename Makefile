@@ -25,7 +25,10 @@ ARCHS	  = linux/amd64 linux/arm64 linux/arm/v7 darwin/amd64 darwin/arm64 windows
 # VERSION and TAG only when HEAD is exactly on a tag; otherwise the binary reports dev.
 VERSION    ?= $(shell git describe --tags --exact-match 2>/dev/null)
 TAG        ?= $(shell git describe --tags --exact-match 2>/dev/null || echo "")
-COMMIT     ?= $(shell git rev-parse HEAD 2>/dev/null)
+# -dirty when the working tree has changes, as Go itself marks vcs.modified
+# (git status --porcelain, untracked files included); empty outside git.
+DIRTY := $(shell [ -z "$$(git status --porcelain 2>/dev/null)" ] || echo -dirty)
+COMMIT     ?= $(shell git rev-parse HEAD 2>/dev/null)$(DIRTY)
 BUILD_DATE ?= $(shell date -u +%Y-%m-%dT%H:%M:%SZ)
 
 LDFLAGS := -ldflags "-s -w -X 'main.version=$(VERSION)' -X 'main.tag=$(TAG)' -X 'main.commit=$(COMMIT)' -X 'main.buildDate=$(BUILD_DATE)'"
