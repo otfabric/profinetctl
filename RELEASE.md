@@ -23,6 +23,22 @@ ending with a `---` line and no `---` line inside a section
 
 ---
 
+## v0.10.1
+
+**Date:** 2026-11-12
+**Previous release:** v0.10.0
+
+### Summary
+
+profinetctl is built on go-profinet v0.8.1, whose interop suite runs
+profinet-interop v0.8.0. No change in behaviour.
+
+### Dependencies
+
+- go-profinet v0.8.0 → v0.8.1.
+
+---
+
 ## v0.10.0
 
 **Date:** 2026-11-08
