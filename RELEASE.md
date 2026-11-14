@@ -23,6 +23,31 @@ ending with a `---` line and no `---` line inside a section
 
 ---
 
+## v0.11.0
+
+**Date:** 2026-11-14
+**Previous release:** v0.10.1
+
+### Summary
+
+profinetctl is built on go-profinet v0.9.0, which bounds the work a peer or
+a file can cause and tightens connection lifecycles. The changes reach every
+command; the CLI's flags, exit codes and JSON fields are unchanged.
+
+### Changed
+
+- Controller commands ignore RPC answers that come from a host other than the
+  one addressed.
+- `gsdml` commands bound the work spent on large or repetitive files:
+  `gsdml check` reports slot warnings up to a per-list limit and quotes long
+  names shortened, and GSDX signature parts are read once.
+
+### Dependencies
+
+- go-profinet v0.8.1 → v0.9.0.
+
+---
+
 ## v0.10.1
 
 **Date:** 2026-11-12
