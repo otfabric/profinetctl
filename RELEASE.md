@@ -23,6 +23,23 @@ ending with a `---` line and no `---` line inside a section
 
 ---
 
+## v0.11.1
+
+**Date:** 2026-11-15
+**Previous release:** v0.11.0
+
+No command or flag is added or changed.
+
+### Changed
+
+- Built on go-profinet v0.9.1 (was v0.9.0) (go-profinet RELEASE.md, v0.9.1). For the tool this means:
+  - `discover`, `topology` and the commands that look a station up by name end with an error when more than 4096 stations answer one DCP Identify (go-profinet's bound per Identify); below that nothing changes.
+  - The GSDML commands (`gsdml check`, `validate`, `inspect`, `modules`, `submodules`, `gsdx`, `generate`) refuse a document of more than 1 048 576 elements, list at most 16 384 issues per severity and one that counts the rest, and refuse a module with more than 1440 submodules or more than 16 MiB of parameter records over its plugged submodules.
+  - Controller commands report no AR for a device until its connection is complete; the simulated device ends an AR whose abort arrives while its Connect runs, and refuses that Connect.
+  - The IP stack the commands use keeps at most 1024 addresses in its ARP table and closes its sockets when it stops.
+
+---
+
 ## v0.11.0
 
 **Date:** 2026-11-14
