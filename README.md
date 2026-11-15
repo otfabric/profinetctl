@@ -105,7 +105,7 @@ A missing privilege exits with code 9 and the error code `permission_denied` ([d
 | Command | What it does |
 |---------|--------------|
 | `interfaces` | list the Ethernet interfaces |
-| `discover`, `devices` | DCP Identify: every device, or those matching `--station`, `--alias`, `--ip`, `--vendor/--device`; duplicate station names are flagged; `--wait` (2s) and `--response-delay` (×10 ms, default 10) |
+| `discover`, `devices` | DCP Identify: every device, or those matching `--station`, `--alias`, `--ip`, `--vendor/--device`; duplicate station names are flagged; `--wait` (2s) and `--response-delay` (×10 ms, default 10); above 4096 answers it lists those of the first 4096, marked truncated (exit code 7) |
 | `identify` | the full DCP identity of one device |
 | `name get`, `name set NAME`, `name set --clear` | read or assign the station name (temporary, or `--permanent`) |
 | `ip get`, `ip set ADDR/PREFIX [--gateway GW]`, `ip set --clear` | read or assign the IP suite |
@@ -114,12 +114,12 @@ A missing privilege exits with code 9 and the error code `permission_denied` ([d
 | `record read --index I [--slot --subslot --api] [--max-length N]` | ReadImplicit of any record, as hex, with the block types it holds (`--max-length`: largest record accepted, default 4096) |
 | `record write --index I --data HEX \| --data-file FILE` | write a record in a device access AR, or with `--gsdml`/`--model` (and `--dap`) in an IOCAR, for devices without device access |
 | `im read [--record 0,1,...]` | I&M0, and the I&M1–4 it lists as supported |
-| `im write --function --location --date --descriptor --signature` | write I&M1–4 of the DAP (in an IOCAR with `--gsdml`/`--model`, as `record write`) |
+| `im write --function --location --date --descriptor --signature` | write I&M1–4 of the DAP (in an IOCAR with `--gsdml`/`--model`, as `record write`); when a record fails after others were written, the result names both (exit code 7) |
 | `diagnostics [--slot --subslot]` | the diagnosis of the device or of one submodule, decoded |
 | `device info` | identity, I&M0 and the real configuration (modules and submodules, RealIdentificationData) |
 | `status` | reachability (DCP, RPC), diagnosis by severity, link and neighbor of each port |
 | `lldp neighbors [--wait D]` | the LLDP neighbors of the host's interface (listens 6 s) |
-| `topology [--wait D] [--lldp-wait D] [--read-any-address]` | every device's port neighbors (PDRealData) and the links between them; it reads the devices in a subnet of the interface (with `--read-any-address` all), 8 at a time, for at most 2 × `--timeout` |
+| `topology [--wait D] [--lldp-wait D] [--read-any-address]` | every device's port neighbors (PDRealData) and the links between them; it reads the devices in a subnet of the interface (with `--read-any-address` all), 8 at a time, for at most 2 × `--timeout`; above 4096 answers to its Identify it maps the first 4096, marked truncated (exit code 7) |
 | `topology check --link A/PORT=B/PORT ... \| --expect FILE` | verify the cabling against the expected links: each link ok, missing, wrong peer, unknown port or unverified (exit code 7 when it differs) |
 | `mrp status [--ports N]` | a device's media redundancy: role, domain, ring state (manager), ring ports (reads N port submodules, default 4) |
 | `hello listen [--duration D]` | stream the DCP Hello frames devices send at start and on link up |
@@ -184,8 +184,8 @@ $ sudo profinetctl -i eth0 connect -s io-rack-1 --gsdml device.xml --plug 3=0x30
 | 3 | invalid input: a flag value, GSDML or model file that does not make sense; nothing was sent |
 | 4 | transport: the interface cannot be opened, a socket cannot be bound |
 | 5 | timeout: the device did not answer |
-| 6 | refused or protocol error: a PNIO error status, a DCP block error, a duplicate station name, a malformed answer |
-| 7 | partial: a result was written and some of it failed (a GSDML file with issues, a topology check that found differences, an I&M record that could not be read) |
+| 6 | refused or protocol error: a PNIO error status, a DCP block error, a duplicate station name (or more than 4096 answers to a lookup by name), a malformed answer |
+| 7 | partial: a result was written and some of it failed (a GSDML file with issues, a topology check that found differences, an I&M record that could not be read or written, a device list cut at 4096) |
 | 8 | unsupported: the device does not support the operation |
 | 9 | permission: the host denies raw Ethernet access |
 | 10 | output or internal error |

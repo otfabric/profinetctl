@@ -9,8 +9,8 @@
 | 3 | Invalid input (`invalid_input`): a flag value, environment variable, GSDML file or model that does not make sense (a negative duration, a zero cycle factor, a send clock × reduction ratio above 65535, an address that is no host address, an input file above 16 MiB), an interface that does not exist. Nothing was sent |
 | 4 | Transport (`transport`): the interface cannot be opened, a socket cannot be bound or fails |
 | 5 | Timeout (`timeout`): the device did not answer a DCP request or an RPC call in time (`--timeout`), or an AR did not reach Running within `--connect-timeout` |
-| 6 | Refused or protocol error (`refused`, `protocol`): the device answered with a PNIO error status, refused a DCP Set with a block error, rejected the Connect, or answered with a malformed frame; more than one device answers to the station name; a device has no IP address for RPC |
-| 7 | Partial success: a **valid** result was written to stdout, and some of it failed: `gsdml validate` found issues, `gsdml check` found errors (with `--strict` any issue), `gsdml gsdx` found container issues or GSDML errors, `topology check` found differences, an I&M record or part of `device info`, `status` or `topology` could not be read, a ring port record of `mrp status` could not be read |
+| 6 | Refused or protocol error (`refused`, `protocol`): the device answered with a PNIO error status, refused a DCP Set with a block error, rejected the Connect, or answered with a malformed frame; more than one device answers to the station name, or more than 4096 devices answer the DCP Identify of a lookup by station name, so that the station cannot be told apart (`duplicate_station_name`; nothing is sent); a device has no IP address for RPC |
+| 7 | Partial success: a **valid** result was written to stdout, and some of it failed: `gsdml validate` found issues, `gsdml check` found errors (with `--strict` any issue), `gsdml gsdx` found container issues or GSDML errors, `topology check` found differences, an I&M record or part of `device info`, `status` or `topology` could not be read, a ring port record of `mrp status` could not be read, `im write` wrote one or more of its records and the next one failed (`written`, `failed`), more than 4096 devices answered the DCP Identify of `discover` (`devices`) or `topology`, which show those of the first 4096 answers (`truncated`) |
 | 8 | Unsupported (`unsupported`): the device does not support the operation: `mrp status` of a device without media redundancy |
 | 9 | Permission (`permission`): the host denies raw Ethernet access: code `permission_denied` |
 | 10 | Output or internal (`output`, `internal`): the result could not be written, or something unexpected happened |
@@ -34,13 +34,13 @@
 | `output` | `table_render_failed`, `output_write_failed`, `output_file_write_failed` |
 | `internal` | `internal_unexpected` |
 
-**Partial exit:** only after a success payload was written. A failure to open the interface, to resolve the device or to write is fatal and uses the codes above, never `7`.
+**Partial exit:** only after a success payload was written. A failure to open the interface, to resolve the device or to write the result is fatal and uses the codes above, never `7`. `im write` is partial only when a record fails after others were written: when the first record fails, nothing was written and its error is fatal; an interruption stays `130`.
 
 **Streaming commands:** `connect`, `alarms`, `io monitor` and `hello listen` write one record at a time. `--duration` or Ctrl-C (SIGINT) and SIGTERM end the stream normally with exit code 0: the AR is released, and `connect` writes its summary. A failure before the AR runs is fatal.
 
 **A second signal:** after the first Ctrl-C or SIGTERM, a second one ends profinetctl at once, by the signal, without output or cleanup (an AR is not released).
 
-**Commands that change a device:** `name set`, `ip set`, `signal`, `reset`, `record write`, `im write`, `disconnect` and the commands that establish an AR validate their flags before sending; a rejected invocation exits `2` or `3` and has sent nothing. A refusal by the device exits `6`, a missing answer `5`; after a timeout a Set may or may not have been applied.
+**Commands that change a device:** `name set`, `ip set`, `signal`, `reset`, `record write`, `im write`, `disconnect` and the commands that establish an AR validate their flags before sending; a rejected invocation exits `2` or `3` and has sent nothing. A refusal by the device exits `6`, a missing answer `5`; after a timeout a Set may or may not have been applied. When `im write` exits `7`, `failed` names the record that failed with the `kind` and `code` of its error, as a fatal error would have them (the table above maps the kind to its exit code); after `timeout` that record may or may not have been written.
 
 **`--debug`:** logs go-profinet's diagnostics and, after a fatal error, the chain of causes (`cause: …` lines) on stderr. It does not change stdout or the exit code.
 

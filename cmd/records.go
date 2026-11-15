@@ -18,6 +18,7 @@ import (
 
 	clihelp "github.com/otfabric/profinetctl/internal/cli"
 	"github.com/otfabric/profinetctl/internal/errs"
+	"github.com/otfabric/profinetctl/internal/runner"
 )
 
 // recordResult is the data of a record read.
@@ -417,6 +418,44 @@ func (r imResult) TableRows() [][]string {
 	return rows
 }
 
+// imWriteResult is the result of im write: the change, the records written
+// and, when one failed after others were written, that record.
+type imWriteResult struct {
+	changeResult
+	// Written lists the records written, in the order written.
+	Written []string `json:"written"`
+	// Failed is the record that failed after those of Written.
+	Failed *imWriteFailure `json:"failed,omitempty"`
+}
+
+// imWriteFailure is a record im write could not write, with its error as a
+// fatal error reports it (kind, code, message).
+type imWriteFailure struct {
+	Record  string `json:"record"`
+	Kind    string `json:"kind"`
+	Code    string `json:"code"`
+	Message string `json:"message"`
+}
+
+// Partial reports a record that failed after others were written.
+func (r imWriteResult) Partial() bool { return r.Failed != nil }
+
+func (r imWriteResult) MarshalTextOutput() (string, error) {
+	s, err := r.changeResult.MarshalTextOutput()
+	if err != nil || r.Failed == nil {
+		return s, err
+	}
+	return s + "failed: " + r.Failed.Message + "\n", nil
+}
+
+func (r imWriteResult) TableRows() [][]string {
+	rows := r.changeResult.TableRows()
+	if r.Failed != nil {
+		rows[0][3] += "; failed: " + r.Failed.Message
+	}
+	return rows
+}
+
 // imRecord returns the record index of I&Mn; ok is false outside I&M0
 // to I&M4.
 func imRecord(n int) (idx pnio.Index, ok bool) {
@@ -556,8 +595,10 @@ func newIMCmd(a *app) *cobra.Command {
 in a device access AR. --function and --location write I&M1 together (the one
 not given keeps its current value: when I&M1 cannot be read, nothing is
 written), --date I&M2 ("YYYY-MM-DD HH:MM"), --descriptor I&M3 and --signature
-(54 octets in hex) I&M4. The records are written in this order; when one fails,
-stderr names those written before it.`,
+(54 octets in hex) I&M4. The records are written in this order. When one fails
+after others were written, the result names those written and the one that
+failed, stderr names those written, and the exit code is 7; when the first
+fails, nothing was written and the exit code is that of its error.`,
 		Args: cobra.NoArgs,
 		RunE: func(c *cobra.Command, _ []string) error {
 			if err := wt.validate(); err != nil {
@@ -597,7 +638,7 @@ stderr names those written before it.`,
 				}
 				defer w.close()
 				var items []controller.WriteItem
-				var written []string
+				var names []string
 				dap := func(n int) controller.Record {
 					idx, _ := imRecord(n) // n is 1 to 4 below
 					return controller.Record{Slot: 0, Subslot: 1, Index: idx}
@@ -620,32 +661,51 @@ stderr names those written before it.`,
 						m.TagLocation = location
 					}
 					items = append(items, controller.WriteItem{Record: dap(1), Data: m.Append(nil)})
-					written = append(written, "I&M1")
+					names = append(names, "I&M1")
 				}
 				if f.Changed("date") {
 					m := pnio.IM2{Date: date}
 					items = append(items, controller.WriteItem{Record: dap(2), Data: m.Append(nil)})
-					written = append(written, "I&M2")
+					names = append(names, "I&M2")
 				}
 				if f.Changed("descriptor") {
 					m := pnio.IM3{Descriptor: descriptor}
 					items = append(items, controller.WriteItem{Record: dap(3), Data: m.Append(nil)})
-					written = append(written, "I&M3")
+					names = append(names, "I&M3")
 				}
 				if f.Changed("signature") {
 					items = append(items, controller.WriteItem{Record: dap(4), Data: sig.Append(nil)})
-					written = append(written, "I&M4")
+					names = append(names, "I&M4")
 				}
-				for i, it := range items {
-					if err := w.write(ctx, it.Record, it.Data); err != nil {
-						if i > 0 {
-							_, _ = fmt.Fprintf(a.stderr, "warning: written before %s failed: %s\n", written[i], strings.Join(written[:i], ", "))
-						}
-						return nil, classify("write "+written[i], err)
+				result := func(written []string) imWriteResult {
+					mac, station := w.device()
+					return imWriteResult{
+						changeResult: changeResult{MAC: mac, Station: station, Operation: "im write", Value: strings.Join(written, ", ")},
+						Written:      written,
 					}
 				}
-				mac, station := w.device()
-				return changeResult{MAC: mac, Station: station, Operation: "im write", Value: strings.Join(written, ", ")}, nil
+				for i, it := range items {
+					werr := w.write(ctx, it.Record, it.Data)
+					if werr == nil {
+						continue
+					}
+					cerr := classify("write "+names[i], werr)
+					if i == 0 {
+						// Nothing was written: the failure is the result.
+						return nil, cerr
+					}
+					_, _ = fmt.Fprintf(a.stderr, "warning: written before %s failed: %s\n", names[i], strings.Join(names[:i], ", "))
+					if e, ok := errs.As(cerr); ok && e.Kind == errs.KindInterrupted {
+						return nil, cerr
+					}
+					// Records were written before this one failed: a
+					// partial result (exit code 7) that names both.
+					r := result(names[:i])
+					info := runner.Info(cerr)
+					r.Failed = &imWriteFailure{Record: names[i], Kind: info.Kind, Code: info.Code, Message: info.Message}
+					return r, nil
+				}
+				return result(names), nil
 			})
 		},
 	}

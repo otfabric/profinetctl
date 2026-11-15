@@ -23,6 +23,48 @@ ending with a `---` line and no `---` line inside a section
 
 ---
 
+## v0.13.0
+
+**Date:** 2026-11-15
+**Previous release:** v0.12.0
+
+### Summary
+
+Two exit-code changes for scripts: `im write` reports a partial write, and
+`discover`, `topology` and the lookups by station name handle more than 4096
+answers to one DCP Identify. No command or flag is added or removed.
+
+### Breaking
+
+- `im write` with several records, when a record fails after others were
+  written: the exit code is 7 (partial) where it was that of the failure (5
+  or 6), and stdout has the result where it had the fatal error. The JSON
+  result names the records written (`written`, present also when every
+  record was written) and the one that failed (`failed`: `record`, `kind`,
+  `code`, `message`); text output ends with a `failed:` line, and stderr
+  still names the records written. When the first record fails, nothing was
+  written and the exit code is that of its error, as before; an interruption
+  stays 130. No flag restores the old exit code. `failed.kind` and
+  `failed.code` are those of the former fatal error
+  ([docs/exitcodes.md](docs/exitcodes.md) maps the kind to its exit code);
+  one record per invocation (`--function` and `--location` are one, I&M1)
+  keeps the exit code of the failure.
+- More than 4096 devices answering one DCP Identify (go-profinet keeps
+  4096): `discover` (`devices`) and `topology` show those of the first 4096
+  answers, with `"truncated": true` in JSON and a `truncated:` line in text,
+  and exit 7. A command that looks a device up with `--station` exits 6
+  (`duplicate_station_name`) and sends nothing more. Both printed nothing
+  and exited 10 (`internal_unexpected`). No flag restores that: a script
+  that handled exit 10 there handles 7 with `truncated`, or 6, instead.
+
+### Documentation
+
+- [docs/exitcodes.md](docs/exitcodes.md) and
+  [docs/json-output.md](docs/json-output.md): the two cases above
+  (`written`, `failed`, `truncated`). README.md and SECURITY.md: the same.
+
+---
+
 ## v0.12.0
 
 **Date:** 2026-11-15

@@ -200,9 +200,17 @@ type topologyResult struct {
 	Host  []neighborView `json:"host_neighbors"`
 	Nodes []topoNode     `json:"devices"`
 	Links []topoLink     `json:"links"`
+	// Truncated says that more devices answered than the Identify keeps:
+	// Nodes holds those of the answers kept.
+	Truncated bool `json:"truncated,omitempty"`
+	// kept is the number of answers the Identify kept.
+	kept int
 }
 
 func (r topologyResult) Partial() bool {
+	if r.Truncated {
+		return true
+	}
 	for _, n := range r.Nodes {
 		if n.Error != "" {
 			return true
@@ -230,6 +238,9 @@ func (r topologyResult) MarshalTextOutput() (string, error) {
 		for _, l := range r.Links {
 			fmt.Fprintf(&b, "  %s %s ── %s %s\n", l.A, l.APort, l.B, l.BPort)
 		}
+	}
+	if r.Truncated {
+		b.WriteString(truncatedLine(r.kept))
 	}
 	return b.String(), nil
 }
@@ -353,7 +364,8 @@ them. With --lldp-wait the host also listens for LLDP to place itself. Devices
 without an IP address cannot be read. Only devices whose IP address lies in a
 subnet of the interface are read (--read-any-address reads the others too), 8
 at a time, and the reads end after 2 × --timeout. Exit code 7 when some could
-not be read.`,
+not be read. When more than 4096 devices answer, the topology holds those of
+the first 4096 answers, marked truncated, and the exit code is 7.`,
 		Args: cobra.NoArgs,
 		RunE: func(c *cobra.Command, _ []string) error {
 			return a.result(c, func(ctx context.Context) (any, error) {
@@ -371,7 +383,10 @@ not be read.`,
 					})
 				}
 				ids, err := s.dcp.Identify(ctx, dcp.FilterAll(), dcp.IdentifyOptions{Wait: wait, ResponseDelay: 10})
-				if err != nil {
+				// More devices than the Identify keeps: the topology of
+				// those kept, marked truncated (exit code 7).
+				r.Truncated, r.kept = identifyTruncated(ids, err), len(ids)
+				if err != nil && !r.Truncated {
 					wg.Wait()
 					return nil, classify("DCP Identify", err)
 				}
