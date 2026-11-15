@@ -71,6 +71,12 @@ func classify(what string, err error) error {
 	}
 }
 
+// identifyTruncated reports whether an Identify ended because more stations
+// answered than it keeps (go-profinet keeps 4096): ids holds those it kept.
+func identifyTruncated(ids []dcp.Identity, err error) bool {
+	return len(ids) > 0 && errors.Is(err, profinet.ErrResourceExhausted)
+}
+
 // logger returns the logger of go-profinet: stderr with --debug, nothing otherwise.
 func (a *app) logger() profinet.Logger {
 	if !a.debug {
@@ -213,6 +219,12 @@ func (s *session) resolve(ctx context.Context, t *target) (dcp.Identity, error) 
 	cctx, cancel := context.WithTimeout(ctx, t.wait+s.a.timeout)
 	defer cancel()
 	answers, err := s.dcp.Identify(cctx, dcp.FilterName(t.station), dcp.IdentifyOptions{Wait: t.wait})
+	if identifyTruncated(answers, err) {
+		// Another device with the name may be among the answers not kept:
+		// the station cannot be told apart, and nothing is sent to it.
+		return dcp.Identity{}, errs.New(errs.KindRefused, errs.CodeDuplicateName,
+			fmt.Sprintf("more than %d devices answer the DCP Identify for %s: the station cannot be told apart; select it with --mac", len(answers), t.describe()), err)
+	}
 	if err != nil {
 		return dcp.Identity{}, classify("DCP Identify", err)
 	}

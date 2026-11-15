@@ -43,7 +43,7 @@ PROFINET IO (without the Security Class 1–3 extensions, which profinetctl does
 
 Read-only commands (`discover`, `identify`, `name get`, `ip get`, `record read`, `im read`, `diagnostics`, `device info`, `status`, `lldp neighbors`, `topology`, `topology check`, `mrp status`) send DCP requests and ReadImplicit calls only; `hello listen` only listens, and the `gsdml` commands read local files. `topology check` runs profinetctl's IO-Controller for its reads, which binds UDP port 34964 and listens for DCP Hello, as `connect` does. DCP Identify is multicast: every device on the segment answers.
 
-A command that names a device with `--station` acts only on a device whose answer carries that station name. `topology` reads only the devices whose IP address lies in a subnet of the interface (`--read-any-address` reads the others too), and its reads end after 2 × `--timeout`.
+A command that names a device with `--station` acts only on a device whose answer carries that station name. When more than 4096 devices answer the DCP Identify of that lookup, the station cannot be told apart: the command sends nothing more and exits 6 (`duplicate_station_name`). Above 4096 answers, `discover` and `topology` show the devices of the first 4096, marked truncated (exit code 7). `topology` reads only the devices whose IP address lies in a subnet of the interface (`--read-any-address` reads the others too), and its reads end after 2 × `--timeout`.
 
 ### Privileges
 

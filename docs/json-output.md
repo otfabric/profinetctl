@@ -11,7 +11,7 @@ These conventions are a **stable contract** for scripting. Field names are snake
 | Octets | lowercase hex without separators (`data`, `default`, `signature`, `vendor_data`) |
 | Repeated rows | `devices`, `interfaces`, `entries`, `modules`, `submodules`, `neighbors`, `ports`, `links`, `inputs`, `outputs`: **arrays**, empty rather than null. Optional lists (`duplicate_names`, `options`, `module_diff`, `differences`, `blocks`, the `records` of a GSDML submodule) and optional values are **omitted** when empty |
 | Times in streams | `time`: local time of day with milliseconds (`"14:03:12.120"`) |
-| A failure inside a result | `error` (a string) on the entry that failed; `errors` (strings) on results with several parts |
+| A failure inside a result | `error` (a string) on the entry that failed; `errors` (strings) on results with several parts; `failed` of `im write`: the record and its error (`kind`, `code`, `message`) |
 | Fatal error | one object `{"error": {"kind", "code", "message"}}` on stdout, nothing else; see [exitcodes.md](exitcodes.md) |
 
 ## Results
@@ -19,18 +19,19 @@ These conventions are a **stable contract** for scripting. Field names are snake
 | Command | Shape |
 |---------|-------|
 | `interfaces` | `{"backend", "interfaces": [{"name", "mac", "mtu", "up", "addresses"}]}` |
-| `discover`, `devices` | `{"devices": [device], "duplicate_names": [..]}`; a device has `mac`, `name_of_station`, `type_of_station`, `vendor_id`, `device_id`, `instance`, `roles` (`"IO-Device"`, `"IO-Controller"`, `"IO-Multidevice"`, `"PN-Supervisor"`), `ip`, `mask`, `gateway`, `ip_set_by` (`none`, `static`, `dhcp`), `ip_conflict`, `oem_vendor_id`, `oem_device_id`, `options` |
+| `discover`, `devices` | `{"devices": [device], "duplicate_names": [..], "truncated"}`; `truncated` (`true`, omitted otherwise) says that more than 4096 devices answered the DCP Identify: `devices` holds those of the first 4096 answers, and the exit code is 7. A device has `mac`, `name_of_station`, `type_of_station`, `vendor_id`, `device_id`, `instance`, `roles` (`"IO-Device"`, `"IO-Controller"`, `"IO-Multidevice"`, `"PN-Supervisor"`), `ip`, `mask`, `gateway`, `ip_set_by` (`none`, `static`, `dhcp`), `ip_conflict`, `oem_vendor_id`, `oem_device_id`, `options` |
 | `identify` | `{"device": device}` |
 | `name get` | `{"mac", "name_of_station"}` |
 | `ip get` | `{"mac", "ip", "mask", "gateway", "set_by", "ip_conflict"}` |
-| `name set`, `ip set`, `signal`, `reset`, `record write`, `im write` | `{"mac", "station", "operation", "value", "permanent"}` |
+| `name set`, `ip set`, `signal`, `reset`, `record write` | `{"mac", "station", "operation", "value", "permanent"}` |
+| `im write` | `{"mac", "station", "operation", "value", "written": [..], "failed": {"record", "kind", "code", "message"}}`; `written` lists the records written, in order (`"I&M1"` to `"I&M4"`), and `value` joins them; `failed` (omitted when every record was written) is the record that failed after those, with its error as the fatal error object has it, and the exit code is 7. When the first record fails, nothing was written: the result is a fatal error |
 | `record read` | `{"mac", "station", "api", "slot", "subslot", "index", "length", "data", "blocks"}` |
 | `im read` | `{"mac", "station", "slot", "subslot", "records": [{"record": "I&M0", "im0": {...} \| "im1" \| ..., "error"}]}` |
 | `diagnostics` | `{"mac", "station", "entries": [{"api", "slot", "subslot", "channel", "direction", "severity", "error_type", "error", "ext_error_type", "ext_add_value", "qualifier", "usi", "vendor_data"}]}` |
 | `device info` | `{"device", "im0", "modules": [{"api", "slot", "module_ident_number", "submodules": [{"subslot", "submodule_ident_number"}]}], "errors"}` |
 | `status` | `{"device", "dcp", "rpc", "diagnoses": {"fault": n, ...}, "ports": [{"subslot", "port_id", "link", "peer"}], "errors"}` |
 | `lldp neighbors` | `{"interface", "neighbors": [{"mac", "chassis_id", "port_id", "ttl", "system_name", "system_description", "port_description", "management_address", "management_if_index", "management_oid", "chassis_mac", "alias", "line_delay"}]}` |
-| `topology` | `{"host_neighbors", "devices": [{"station", "mac", "ip", "ports": [{"subslot", "port_id", "link", "peers": [{"station", "port", "mac", "line_delay"}]}], "error"}], "links": [{"a", "a_port", "b", "b_port"}]}` |
+| `topology` | `{"host_neighbors", "devices": [{"station", "mac", "ip", "ports": [{"subslot", "port_id", "link", "peers": [{"station", "port", "mac", "line_delay"}]}], "error"}], "links": [{"a", "a_port", "b", "b_port"}], "truncated"}`; `truncated` as for `discover`: `devices` holds those of the first 4096 answers (exit 7) |
 | `gsdml inspect` | `{"file", "schema_version", "vendor_id", "device_id", "vendor_name", "family", "device_access_points": [...], "valid", "issues"}`; the first 64 device access points are converted for their name, ports, slots and modules, the others have `"error": "not converted: more than 64 device access points"` |
 | `gsdml validate` | `{"file", "valid", "issues": [{"path", "message", "severity", "rule"}], "scope"}`; `severity` is `"error"` (validate reports errors only), `rule` names the rule broken: `"structure"` (or absent), `"reference"` or `"io-data-length"` (input or output data too long for an RT frame) |
 | `gsdml check` | `{"file", "schema_version", "errors", "warnings", "unvalidated", "issues": [{"path", "message", "severity", "rule"}], "scope"}`; `severity` is `"error"`, `"warning"` or `"unvalidated"` |

@@ -158,7 +158,15 @@ type discoverResult struct {
 	Devices []deviceView `json:"devices"`
 	// Duplicates lists station names that more than one device answers to.
 	Duplicates []string `json:"duplicate_names,omitempty"`
+	// Truncated says that more devices answered than the Identify keeps:
+	// Devices holds those of the answers kept.
+	Truncated bool `json:"truncated,omitempty"`
+	// kept is the number of answers the Identify kept.
+	kept int
 }
+
+// Partial reports a list cut short by the bound of the Identify.
+func (r discoverResult) Partial() bool { return r.Truncated }
 
 func (r discoverResult) MarshalTextOutput() (string, error) {
 	var b strings.Builder
@@ -169,7 +177,16 @@ func (r discoverResult) MarshalTextOutput() (string, error) {
 	for _, n := range r.Duplicates {
 		fmt.Fprintf(&b, "warning: station name %q is used by more than one device\n", n)
 	}
+	if r.Truncated {
+		b.WriteString(truncatedLine(r.kept))
+	}
 	return b.String(), nil
+}
+
+// truncatedLine is the text line of a result cut short by the bound of the
+// Identify, which kept the first kept answers.
+func truncatedLine(kept int) string {
+	return fmt.Sprintf("truncated: more than %d devices answered DCP Identify; those after the first %d answers are not listed\n", kept, kept)
 }
 
 func (r discoverResult) TableHeaders() []string { return deviceHeaders }
@@ -195,7 +212,9 @@ func newDiscoverCmd(a *app, name string) *cobra.Command {
 		Short: "Find the PROFINET devices on the network (DCP Identify)",
 		Long: `Multicast a DCP Identify request and list the devices that answer, sorted by MAC
 address. Without a filter every device answers; --station, --alias, --ip and
---vendor/--device restrict the request to the devices that match.`,
+--vendor/--device restrict the request to the devices that match. When more
+than 4096 devices answer, the list holds those of the first 4096 answers,
+marked truncated, and the exit code is 7.`,
 		Args: cobra.NoArgs,
 		RunE: func(c *cobra.Command, _ []string) error {
 			given := 0
@@ -237,16 +256,19 @@ address. Without a filter every device answers; --station, --alias, --ip and
 				}
 				defer s.Close()
 				ids, err := s.dcp.Identify(ctx, filter, dcp.IdentifyOptions{Wait: wait, ResponseDelay: delay})
-				if err != nil {
+				// More devices than the Identify keeps: the list holds
+				// those kept, marked truncated (exit code 7).
+				truncated := identifyTruncated(ids, err)
+				if err != nil && !truncated {
 					return nil, classify("DCP Identify", err)
 				}
+				res := discoverResult{Devices: []deviceView{}, Truncated: truncated, kept: len(ids)}
 				if station != "" {
 					// An answer to the name filter that carries another
 					// name is not the station.
 					ids = stationsNamed(ids, station)
 				}
 				sort.Slice(ids, func(i, j int) bool { return ids[i].MAC.String() < ids[j].MAC.String() })
-				res := discoverResult{Devices: []deviceView{}}
 				names := map[string]int{}
 				for _, id := range ids {
 					if wantIP.IsValid() && id.IP.Addr != wantIP {

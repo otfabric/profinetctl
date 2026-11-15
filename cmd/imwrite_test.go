@@ -3,7 +3,10 @@
 package cmd
 
 import (
+	"bytes"
+	"context"
 	"encoding/binary"
+	"encoding/json"
 	"strings"
 	"testing"
 
@@ -113,21 +116,72 @@ func TestIMWriteNeedsTheCurrentIM1(t *testing.T) {
 	}
 }
 
-// When one of several records fails, stderr names the records written before
-// it; the exit code is that of the failure.
+// When one of several records fails after others were written, the result
+// names the records written and the one that failed, stderr names those
+// written, and the exit code is 7 (partial). When the first record fails,
+// nothing was written: the exit code is that of its error.
 func TestIMWriteNamesTheRecordsWritten(t *testing.T) {
 	t.Parallel()
 	n := newTestNet(t)
 	ep := n.imDevice("dev-im", "192.168.0.22")
 	dropResponses(ep, pnio.BlockWriteRes, pnio.IndexIM3)
-	out, errOut, code := n.run("-i", "pn0", "im", "write", "-s", "dev-im", "--function", "valve", "--date", "2026-11-15", "--descriptor", "x", "--signature", "a1",
-		"--timeout", "1s", "--format", "json")
-	if code != 5 || errOut != "warning: written before I&M3 failed: I&M1, I&M2\n" || !strings.Contains(out, `"request_timeout"`) {
+	args := []string{"-i", "pn0", "im", "write", "-s", "dev-im", "--function", "valve", "--date", "2026-11-15", "--descriptor", "x", "--signature", "a1", "--timeout", "1s"}
+	out, errOut, code := n.run(append(args, "--format", "json")...)
+	// The result as docs/json-output.md describes it.
+	type imWriteJSON struct {
+		Station, Operation, Value string
+		Written                   []string
+		Failed                    *struct{ Record, Kind, Code, Message string }
+	}
+	var r imWriteJSON
+	if code != 7 || errOut != "warning: written before I&M3 failed: I&M1, I&M2\n" || json.Unmarshal([]byte(out), &r) != nil {
 		t.Fatalf("exit %d\nstdout: %s\nstderr: %s", code, out, errOut)
+	}
+	f := r.Failed
+	if strings.Join(r.Written, ", ") != "I&M1, I&M2" || r.Value != "I&M1, I&M2" || r.Station != "dev-im" || r.Operation != "im write" ||
+		f == nil || f.Record != "I&M3" || f.Kind != "timeout" || f.Code != "request_timeout" || !strings.HasPrefix(f.Message, "write I&M3: ") {
+		t.Fatalf("result: %s", out)
+	}
+	out, _, code = n.run(args...)
+	if code != 7 || !strings.Contains(out, " → I&M1, I&M2\nfailed: write I&M3: ") {
+		t.Fatalf("text: exit %d\n%s", code, out)
 	}
 	// The first record fails: none was written before it.
 	dropResponses(ep, pnio.BlockWriteRes, pnio.IndexIM1)
-	if out, errOut, code := n.run("-i", "pn0", "im", "write", "-s", "dev-im", "--function", "valve", "--date", "2026-11-15", "--timeout", "1s", "--format", "json"); code != 5 || errOut != "" {
+	out, errOut, code = n.run("-i", "pn0", "im", "write", "-s", "dev-im", "--function", "valve", "--date", "2026-11-15", "--timeout", "1s", "--format", "json")
+	if code != 5 || errOut != "" || !strings.Contains(out, `"request_timeout"`) {
 		t.Fatalf("exit %d\nstdout: %s\nstderr: %s", code, out, errOut)
+	}
+	// Every record written: written lists them all, and nothing failed.
+	ep.SetFaults(vnet.Faults{})
+	r = imWriteJSON{}
+	n.json(&r, "-i", "pn0", "im", "write", "-s", "dev-im", "--function", "valve", "--date", "2026-11-15", "--timeout", "1s")
+	if strings.Join(r.Written, ", ") != "I&M1, I&M2" || r.Value != "I&M1, I&M2" || r.Failed != nil {
+		t.Fatalf("result: %+v", r)
+	}
+}
+
+// An interruption while a later record is written is not a partial result:
+// the exit code stays 130, and stderr names the records written.
+func TestIMWriteInterruptedAfterARecord(t *testing.T) {
+	t.Parallel()
+	n := newTestNet(t)
+	ep := n.imDevice("dev-im", "192.168.0.23")
+	ctx, cancel := context.WithCancel(context.Background())
+	defer cancel()
+	// The device's answer to the write of I&M2 is lost, and the user
+	// interrupts profinetctl while it waits for it.
+	ep.SetFaults(vnet.Faults{Loss: 1, Match: func(f []byte) bool {
+		typ, idx, ok := recordResponse(f)
+		if ok && typ == pnio.BlockWriteRes && idx == pnio.IndexIM2 {
+			cancel()
+			return true
+		}
+		return false
+	}})
+	var out, errOut bytes.Buffer
+	code := Run(ctx, n, []string{"-i", "pn0", "im", "write", "-s", "dev-im", "--function", "valve", "--date", "2026-11-15", "--format", "json"}, &out, &errOut)
+	if code != 130 || errOut.String() != "warning: written before I&M2 failed: I&M1\n" || !strings.Contains(out.String(), `"context_canceled"`) {
+		t.Fatalf("exit %d\nstdout: %s\nstderr: %s", code, out.String(), errOut.String())
 	}
 }
