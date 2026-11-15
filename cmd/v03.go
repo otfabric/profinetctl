@@ -114,13 +114,16 @@ issues.`,
 				}
 				return nil
 			}
-			return a.result(c, func(context.Context) (any, error) {
+			return a.result(c, func(ctx context.Context) (any, error) {
 				p, err := gsdx.OpenFile(args[0])
 				if err != nil {
 					return nil, errs.InvalidInput(errs.CodeInvalidInput, fmt.Sprintf("%s: %v", args[0], err), err)
 				}
 				r := gsdxResult{File: args[0], Package: p, GSDML: []gsdxPart{}, Scope: gsdxScope}
 				for _, name := range p.GSDMLParts() {
+					if err := interrupted(ctx); err != nil {
+						return nil, err
+					}
 					g := gsdxPart{Name: name}
 					if _, rep, err := p.CheckGSDML(name); err != nil {
 						g.Error = err.Error()
@@ -129,7 +132,7 @@ issues.`,
 					}
 					r.GSDML = append(r.GSDML, g)
 				}
-				return r, nil
+				return r, interrupted(ctx)
 			})
 		},
 	}

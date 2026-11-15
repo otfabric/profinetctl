@@ -1,6 +1,6 @@
 # Releasing profinetctl
 
-Releases are cut by the **Release** workflow (`.github/workflows/release.yml`, the shared `otfabric/.github` `go-binary-release.yml@v2`): run it from the Actions tab with the version bump (`patch`, `minor`, `major`). It tags the version, builds the binaries for Linux (x86-64, ARM64, ARMv7), macOS (x86-64, ARM64) and Windows (x86-64, ARM64) with the version, tag, commit and build date in `profinetctl version`, and publishes them with SHA-256 checksums.
+Releases are cut by the **Release** workflow (`.github/workflows/release.yml`, the shared `otfabric/.github` `go-binary-release.yml@v3.8.0`): run it from the Actions tab with the version bump (`patch`, `minor`, `major`). It tags the version, builds the binaries for Linux (x86-64, ARM64, ARMv7), macOS (x86-64, ARM64) and Windows (x86-64, ARM64) with the version, tag, commit and build date in `profinetctl version`, and publishes them with SHA-256 checksums.
 
 ## go-profinet
 
@@ -20,6 +20,65 @@ ending with a `---` line and no `---` line inside a section
 - `make check` passes locally (it includes `make release-notes-check`); CI is green.
 - [docs/exitcodes.md](docs/exitcodes.md) and [docs/json-output.md](docs/json-output.md) describe any change of exit codes or JSON fields; a breaking change is called out in the release notes.
 - `SECURITY.md` lists the supported versions.
+
+---
+
+## v0.12.0
+
+**Date:** 2026-11-15
+**Previous release:** v0.11.1
+
+### Summary
+
+Fixes in how profinetctl selects a station by name, keeps the I&M1 field not
+given to `im write`, bounds the reads of `topology` and the work of
+`gsdml inspect`, and ends on Ctrl-C. One flag is added
+(`topology --read-any-address`). Exit codes change where a command used to
+go on or succeed wrongly, as listed below.
+
+### Fixed
+
+- `--station`, in every command that looks a station up by name and in
+  `discover --station`: only an answer that carries the station name is
+  taken. An answer with another name counts as no answer: the command exits
+  11 (`device_not_found`, the message counts the answers ignored) and sends
+  that station nothing. When the named station answers as well, it is the
+  one selected, where the exit code was 6 (`duplicate_station_name`).
+- `im write` with only `--function` or only `--location` keeps the other
+  field of I&M1, as its help says: when the current I&M1 cannot be read (no
+  answer, a refusal, a malformed record), it writes nothing and exits with
+  the error of the read (5 or 6), where it wrote I&M1 with the other field
+  empty and exited 0. When one of several records fails, stderr names those
+  written before it; the exit code stays that of the failure.
+- `topology` reads only the devices whose IP address lies in a subnet of the
+  interface; the others are listed with an error (exit code 7), and the new
+  flag `--read-any-address` reads them as before. The reads end after
+  2 × `--timeout` in all; the devices not read by then have an error (exit
+  code 7).
+- `gsdml inspect` converts the first 64 device access points of a file; the
+  others are listed with their ID, ident number and conformance class, and
+  `"error": "not converted: more than 64 device access points"`.
+- The `gsdml` commands exit 130 after Ctrl-C or SIGTERM instead of finishing
+  their work and exiting 0 or 7. A second Ctrl-C or SIGTERM ends any command
+  at once ([docs/exitcodes.md](docs/exitcodes.md)).
+
+### Documentation
+
+- [docs/json-output.md](docs/json-output.md): `mrp status` of a device
+  without media redundancy exits 8, as the code and docs/exitcodes.md say
+  (it said 6).
+- SECURITY.md: `record write` and `im write` with `--gsdml` or `--model`
+  establish an IOCAR; `topology check` binds UDP 34964 and listens for DCP
+  Hello; the `--station` and `topology` rules above. README.md:
+  `topology check` binds UDP 34964; a missing privilege exits 9, as
+  docs/exitcodes.md says (it said 4). RELEASE.md: the release workflow is
+  `go-binary-release.yml@v3.8.0`.
+
+### CI
+
+- A job runs `make e2e`, the suite of the built binary, with a case that
+  interrupts a command with SIGINT and with SIGTERM and expects exit code
+  130.
 
 ---
 

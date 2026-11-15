@@ -477,6 +477,19 @@ func readIM(ctx context.Context, s *rpcSession, slot, subslot uint16, n int) imE
 	return e
 }
 
+// readIM1 reads the I&M1 record rec in the AR of w and decodes it.
+func readIM1(ctx context.Context, w *recordWriter, rec controller.Record) (pnio.IM1, error) {
+	b, err := w.read(ctx, rec)
+	if err != nil {
+		return pnio.IM1{}, err
+	}
+	blk, _, err := pnio.ReadBlock(b)
+	if err != nil {
+		return pnio.IM1{}, err
+	}
+	return pnio.DecodeIM1(blk)
+}
+
 func newIMCmd(a *app) *cobra.Command {
 	g := groupCmd("im", "Read and write the identification and maintenance records (I&M0-4)")
 	var t target
@@ -541,8 +554,10 @@ func newIMCmd(a *app) *cobra.Command {
 		Short: "Write I&M1 (tag), I&M2 (date), I&M3 (descriptor) or I&M4 (signature) of the DAP",
 		Long: `Write the I&M records given on the command line to the DAP (slot 0, subslot 1)
 in a device access AR. --function and --location write I&M1 together (the one
-not given keeps its current value), --date I&M2 ("YYYY-MM-DD HH:MM"), --descriptor
-I&M3 and --signature (54 octets in hex) I&M4.`,
+not given keeps its current value: when I&M1 cannot be read, nothing is
+written), --date I&M2 ("YYYY-MM-DD HH:MM"), --descriptor I&M3 and --signature
+(54 octets in hex) I&M4. The records are written in this order; when one fails,
+stderr names those written before it.`,
 		Args: cobra.NoArgs,
 		RunE: func(c *cobra.Command, _ []string) error {
 			if err := wt.validate(); err != nil {
@@ -589,12 +604,14 @@ I&M3 and --signature (54 octets in hex) I&M4.`,
 				}
 				if im1 {
 					m := pnio.IM1{}
-					if b, err := w.read(ctx, dap(1)); err == nil {
-						if blk, _, err := pnio.ReadBlock(b); err == nil {
-							if cur, err := pnio.DecodeIM1(blk); err == nil {
-								m = cur
-							}
-						}
+					cur, err := readIM1(ctx, w, dap(1))
+					switch {
+					case err == nil:
+						m = cur
+					case !f.Changed("function") || !f.Changed("location"):
+						// The field not given keeps its current value: without
+						// it nothing is written.
+						return nil, classify("read I&M1", err)
 					}
 					if f.Changed("function") {
 						m.TagFunction = function
@@ -621,6 +638,9 @@ I&M3 and --signature (54 octets in hex) I&M4.`,
 				}
 				for i, it := range items {
 					if err := w.write(ctx, it.Record, it.Data); err != nil {
+						if i > 0 {
+							_, _ = fmt.Fprintf(a.stderr, "warning: written before %s failed: %s\n", written[i], strings.Join(written[:i], ", "))
+						}
 						return nil, classify("write "+written[i], err)
 					}
 				}

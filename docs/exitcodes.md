@@ -38,6 +38,8 @@
 
 **Streaming commands:** `connect`, `alarms`, `io monitor` and `hello listen` write one record at a time. `--duration` or Ctrl-C (SIGINT) and SIGTERM end the stream normally with exit code 0: the AR is released, and `connect` writes its summary. A failure before the AR runs is fatal.
 
+**A second signal:** after the first Ctrl-C or SIGTERM, a second one ends profinetctl at once, by the signal, without output or cleanup (an AR is not released).
+
 **Commands that change a device:** `name set`, `ip set`, `signal`, `reset`, `record write`, `im write`, `disconnect` and the commands that establish an AR validate their flags before sending; a rejected invocation exits `2` or `3` and has sent nothing. A refusal by the device exits `6`, a missing answer `5`; after a timeout a Set may or may not have been applied.
 
 **`--debug`:** logs go-profinet's diagnostics and, after a fatal error, the chain of causes (`cause: …` lines) on stderr. It does not change stdout or the exit code.

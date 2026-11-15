@@ -5,7 +5,9 @@ package cmd
 import (
 	"context"
 	"fmt"
+	"math"
 	"net"
+	"net/netip"
 	"sort"
 	"strings"
 	"sync"
@@ -297,15 +299,61 @@ func links(nodes []topoNode) []topoLink {
 // topologyReads is how many PDRealData reads topology runs at a time.
 const topologyReads = 8
 
+// topologyReadPhase is how long the PDRealData reads of topology take in
+// all, in units of --timeout: a station is read within one, and the
+// stations not read by the end are reported with an error.
+const topologyReadPhase = 2
+
+// readPhase returns topologyReadPhase × timeout, the longest duration when
+// that does not fit.
+func readPhase(timeout time.Duration) time.Duration {
+	return min(timeout, math.MaxInt64/topologyReadPhase) * topologyReadPhase
+}
+
+// subnets returns the IPv4 subnets of the invocation's interface, from the
+// addresses the backend lists for it.
+func (a *app) subnets() []netip.Prefix {
+	ifs, err := a.backend.Interfaces()
+	if err != nil {
+		return nil
+	}
+	var out []netip.Prefix
+	for _, i := range ifs {
+		if i.Name != a.iface {
+			continue
+		}
+		for _, s := range i.Addrs {
+			if p, err := netip.ParsePrefix(s); err == nil && p.Addr().Is4() {
+				out = append(out, p.Masked())
+			}
+		}
+	}
+	return out
+}
+
+// inSubnets reports whether addr lies in one of the subnets.
+func inSubnets(addr netip.Addr, subnets []netip.Prefix) bool {
+	for _, p := range subnets {
+		if p.Contains(addr) {
+			return true
+		}
+	}
+	return false
+}
+
 func newTopologyCmd(a *app) *cobra.Command {
 	var wait, lldpWait time.Duration
+	var anyAddress bool
 	c := &cobra.Command{
 		Use:   "topology",
 		Short: "Discover the devices and read their port neighbors (PDRealData) to map the cabling",
 		Long: `Find every device with DCP Identify, read the port data of each (PDRealData,
 index 0xF841: the LLDP neighbor of every port) and derive the links between
 them. With --lldp-wait the host also listens for LLDP to place itself. Devices
-without an IP address cannot be read. Exit code 7 when some could not be read.`,
+without an IP address cannot be read. Only devices whose IP address lies in a
+subnet of the interface are read (--read-any-address reads the others too), 8
+at a time, and the reads end after 2 × --timeout. Exit code 7 when some could
+not be read.`,
 		Args: cobra.NoArgs,
 		RunE: func(c *cobra.Command, _ []string) error {
 			return a.result(c, func(ctx context.Context) (any, error) {
@@ -342,20 +390,43 @@ without an IP address cannot be read. Exit code 7 when some could not be read.`,
 				// with thousands of stations does not start thousands of
 				// goroutines.
 				sem := make(chan struct{}, topologyReads)
+				// The reads together end after topologyReadPhase × --timeout,
+				// however many stations answered.
+				phase := readPhase(a.timeout)
+				reads, endReads := context.WithTimeout(ctx, phase)
+				defer endReads()
+				subnets := a.subnets()
 				for i, id := range ids {
 					nodes[i] = topoNode{Station: id.NameOfStation, MAC: id.MAC.String(), IP: addrOr(id.IP.Addr), Ports: []topoPort{}}
 					if !id.IP.Addr.IsValid() || id.IP.Addr.IsUnspecified() {
 						nodes[i].Error = "no IP address: the port data cannot be read"
 						continue
 					}
+					if !anyAddress && !inSubnets(id.IP.Addr, subnets) {
+						nodes[i].Error = fmt.Sprintf("IP address outside the subnets of %s: not read (--read-any-address reads it)", a.iface)
+						continue
+					}
+					// Each read ends within --timeout. Once the reads have
+					// ended no other starts, so a slot taken here is not given
+					// back.
+					select {
+					case sem <- struct{}{}:
+					case <-reads.Done():
+					}
+					if reads.Err() != nil {
+						nodes[i].Error = fmt.Sprintf("not read: the reads ended after %s (%d × --timeout)", phase, topologyReadPhase)
+						if ctx.Err() != nil {
+							nodes[i].Error = "not read: " + errorOf(ctx.Err())
+						}
+						continue
+					}
 					addr := &net.UDPAddr{IP: id.IP.Addr.AsSlice(), Port: rpc.Port}
 					nodes[i].rc = controller.NewRecordClient(cli, addr, pnio.ObjectUUID(max(id.Instance, 1), id.DeviceID, id.VendorID))
-					sem <- struct{}{} // each read ends within --timeout
 					nwg.Add(1)
 					go func(n *topoNode) {
 						defer nwg.Done()
 						defer func() { <-sem }()
-						cctx, cancel := context.WithTimeout(ctx, a.timeout)
+						cctx, cancel := context.WithTimeout(reads, a.timeout)
 						defer cancel()
 						b, err := n.rc.Read(cctx, rpc.NilUUID, controller.Record{Slot: 0, Subslot: 1, Index: pnio.IndexPDRealData}, 0)
 						if err != nil {
@@ -386,6 +457,7 @@ without an IP address cannot be read. Exit code 7 when some could not be read.`,
 	}
 	c.Flags().DurationVar(&wait, "wait", 2*time.Second, "How long DCP Identify collects responses")
 	c.Flags().DurationVar(&lldpWait, "lldp-wait", 0, "Also listen this long for the host's own LLDP neighbor")
+	c.Flags().BoolVar(&anyAddress, "read-any-address", false, "Also read the devices whose IP address lies outside the subnets of the interface")
 	c.AddCommand(newTopologyCheckCmd(a))
 	return c
 }

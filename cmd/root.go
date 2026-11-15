@@ -176,9 +176,21 @@ OT Fabric libraries it is built with (go-profinet), Go version and platform. --j
 
 // Execute runs the root command and returns the process exit code (main should call os.Exit).
 func Execute() int {
-	ctx, stop := signal.NotifyContext(context.Background(), os.Interrupt, syscall.SIGTERM)
+	ctx, stop := signalContext(context.Background())
 	defer stop()
 	return Run(ctx, osBackend{}, os.Args[1:], os.Stdout, os.Stderr)
+}
+
+// signalContext returns a context that the first SIGINT or SIGTERM cancels.
+// Both signals then get their default action back, so that a second one ends
+// the process even while a command has not returned yet.
+func signalContext(parent context.Context) (context.Context, context.CancelFunc) {
+	ctx, stop := signal.NotifyContext(parent, os.Interrupt, syscall.SIGTERM)
+	go func() {
+		<-ctx.Done()
+		stop()
+	}()
+	return ctx, stop
 }
 
 // Run executes profinetctl with args on a backend, writing to stdout and stderr, and

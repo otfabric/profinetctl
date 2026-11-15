@@ -127,12 +127,15 @@ outside the catalog, newer schema versions). Exit code 7 when there are errors,
 or with --strict any issue. This is not PI's GSDML checker.`,
 		Args: cobra.ExactArgs(1),
 		RunE: func(c *cobra.Command, args []string) error {
-			return a.result(c, func(context.Context) (any, error) {
+			return a.result(c, func(ctx context.Context) (any, error) {
 				doc, err := readGSDML(args[0])
 				if err != nil {
 					return nil, err
 				}
 				rep := gsdml.Check(doc)
+				if err := interrupted(ctx); err != nil {
+					return nil, err
+				}
 				r := checkResult{File: args[0], SchemaVersion: rep.SchemaVersion, Issues: rep.Issues, Scope: checkScope, strict: strict,
 					Errors: rep.Count(gsdml.SeverityError), Warnings: rep.Count(gsdml.SeverityWarning), Unvalidated: rep.Count(gsdml.SeverityUnvalidated)}
 				if r.Issues == nil {
