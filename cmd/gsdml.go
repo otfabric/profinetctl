@@ -140,7 +140,23 @@ func (r inspectResult) TableRows() [][]string {
 
 var schemaVersionRE = regexp.MustCompile(`GSDML-DeviceProfile-[vV]?([0-9.]+)\.xsd`)
 
-func inspect(path string, doc *gsdml.Document) inspectResult {
+// inspectDAPs is how many device access points inspect converts to a model
+// for their name, ports, slots and modules; each conversion reads the whole
+// document. The device access points after them are listed with their ID,
+// ident number and conformance class only.
+const inspectDAPs = 64
+
+// interrupted returns the error of a context that has ended: exit code 130
+// after Ctrl-C or SIGTERM. go-profinet's GSDML functions take no context, so
+// the gsdml commands check it between them.
+func interrupted(ctx context.Context) error {
+	if err := ctx.Err(); err != nil {
+		return classify("GSDML", err)
+	}
+	return nil
+}
+
+func inspect(ctx context.Context, path string, doc *gsdml.Document) (inspectResult, error) {
 	r := inspectResult{File: path, DAPs: []dapView{}}
 	for _, at := range doc.Attrs {
 		if m := schemaVersionRE.FindStringSubmatch(at.Value); m != nil {
@@ -158,10 +174,18 @@ func inspect(path string, doc *gsdml.Document) inspectResult {
 			r.Family = strings.TrimSpace(f.Family.MainFamily + " " + f.Family.ProductFamily)
 		}
 		if ap := pb.ApplicationProcess; ap != nil && ap.DeviceAccessPointList != nil {
-			for _, d := range ap.DeviceAccessPointList.DeviceAccessPointItems {
+			for i, d := range ap.DeviceAccessPointList.DeviceAccessPointItems {
 				v := dapView{ID: d.ID, IdentNumber: d.ModuleIdentNumber, DeviceAccess: gsdml.ParseBool(d.DeviceAccessSupported, false)}
 				if d.CertificationInfo != nil {
 					v.ConformanceClass = d.CertificationInfo.ConformanceClass
+				}
+				if i >= inspectDAPs {
+					v.Error = fmt.Sprintf("not converted: more than %d device access points", inspectDAPs)
+					r.DAPs = append(r.DAPs, v)
+					continue
+				}
+				if err := interrupted(ctx); err != nil {
+					return inspectResult{}, err
 				}
 				if m, err := gsdml.ToModel(doc, d.ID); err != nil {
 					v.Error = err.Error()
@@ -178,7 +202,7 @@ func inspect(path string, doc *gsdml.Document) inspectResult {
 	if ve, ok := errors.AsType[*gsdml.ValidationError](err); ok {
 		r.Issues = len(ve.Issues)
 	}
-	return r
+	return r, interrupted(ctx)
 }
 
 // validateResult is the outcome of a validation.
@@ -346,12 +370,12 @@ func newGSDMLCmd(a *app) *cobra.Command {
 		Short: "Summarize a GSDML file: identity, device access points, modules",
 		Args:  cobra.ExactArgs(1),
 		RunE: func(c *cobra.Command, args []string) error {
-			return a.result(c, func(context.Context) (any, error) {
+			return a.result(c, func(ctx context.Context) (any, error) {
 				doc, err := readGSDML(args[0])
 				if err != nil {
 					return nil, err
 				}
-				return inspect(args[0], doc), nil
+				return inspect(ctx, args[0], doc)
 			})
 		},
 	}
@@ -365,7 +389,7 @@ frame. The official schemas of PROFIBUS & PROFINET International are licensed
 to its members and are not part of profinetctl: this is not PI's GSDML checker.`,
 		Args: cobra.ExactArgs(1),
 		RunE: func(c *cobra.Command, args []string) error {
-			return a.result(c, func(context.Context) (any, error) {
+			return a.result(c, func(ctx context.Context) (any, error) {
 				doc, err := readGSDML(args[0])
 				if err != nil {
 					return nil, err
@@ -378,7 +402,7 @@ to its members and are not part of profinetctl: this is not PI's GSDML checker.`
 					}
 					r.Valid, r.Issues = false, ve.Issues
 				}
-				return r, nil
+				return r, interrupted(ctx)
 			})
 		},
 	}
@@ -388,9 +412,12 @@ to its members and are not part of profinetctl: this is not PI's GSDML checker.`
 		Short: "List the module types a device access point accepts",
 		Args:  cobra.ExactArgs(1),
 		RunE: func(c *cobra.Command, args []string) error {
-			return a.result(c, func(context.Context) (any, error) {
+			return a.result(c, func(ctx context.Context) (any, error) {
 				m, err := loadModel(args[0], dap, "")
 				if err != nil {
+					return nil, err
+				}
+				if err := interrupted(ctx); err != nil {
 					return nil, err
 				}
 				r := modulesResult{DAP: orDash(dap), Modules: []moduleView{}}
@@ -426,9 +453,12 @@ to its members and are not part of profinetctl: this is not PI's GSDML checker.`
 				}
 				want = v
 			}
-			return a.result(c, func(context.Context) (any, error) {
+			return a.result(c, func(ctx context.Context) (any, error) {
 				m, err := loadModel(args[0], subDAP, "")
 				if err != nil {
+					return nil, err
+				}
+				if err := interrupted(ctx); err != nil {
 					return nil, err
 				}
 				r := submodulesResult{DAP: orDash(subDAP), Submodules: []submoduleView{}}
@@ -472,6 +502,9 @@ file goes to stdout; with a directory it gets its conventional name
 			b, err := gsdml.Marshal(doc)
 			if err != nil {
 				return errs.Internal(err)
+			}
+			if err := interrupted(c.Context()); err != nil {
+				return err
 			}
 			if out == "" {
 				if _, err := c.OutOrStdout().Write(b); err != nil {

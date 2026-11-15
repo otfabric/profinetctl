@@ -98,7 +98,7 @@ DCP, LLDP and the cyclic data are raw Ethernet frames (EtherType 0x8892 and 0x88
 | macOS | BPF (`/dev/bpf*`) | root, or membership of the `access_bpf` group (Wireshark's ChmodBPF installs it) |
 | Windows | [Npcap](https://npcap.com) | Npcap installed (WinPcap API-compatible mode); run as Administrator unless Npcap is restricted to non-admins off |
 
-A missing privilege exits with code 4 and the error code `permission_denied`. `profinetctl interfaces` and the `gsdml` commands need none. Records, I&M and diagnosis use DCE/RPC over the host's UDP stack (port 34964); `connect` and the commands that establish an AR also listen on UDP 34964 for the device's ApplicationReady (`--rpc-port` changes it).
+A missing privilege exits with code 9 and the error code `permission_denied` ([docs/exitcodes.md](docs/exitcodes.md)). `profinetctl interfaces` and the `gsdml` commands need none. Records, I&M and diagnosis use DCE/RPC over the host's UDP stack (port 34964); `connect` and the commands that establish an AR also listen on UDP 34964 for the device's ApplicationReady (`--rpc-port` changes it), and `topology check` binds UDP 34964 for its reads.
 
 ## Commands
 
@@ -119,11 +119,11 @@ A missing privilege exits with code 4 and the error code `permission_denied`. `p
 | `device info` | identity, I&M0 and the real configuration (modules and submodules, RealIdentificationData) |
 | `status` | reachability (DCP, RPC), diagnosis by severity, link and neighbor of each port |
 | `lldp neighbors [--wait D]` | the LLDP neighbors of the host's interface (listens 6 s) |
-| `topology [--wait D] [--lldp-wait D]` | every device's port neighbors (PDRealData) and the links between them |
+| `topology [--wait D] [--lldp-wait D] [--read-any-address]` | every device's port neighbors (PDRealData) and the links between them; it reads the devices in a subnet of the interface (with `--read-any-address` all), 8 at a time, for at most 2 × `--timeout` |
 | `topology check --link A/PORT=B/PORT ... \| --expect FILE` | verify the cabling against the expected links: each link ok, missing, wrong peer, unknown port or unverified (exit code 7 when it differs) |
 | `mrp status [--ports N]` | a device's media redundancy: role, domain, ring state (manager), ring ports (reads N port submodules, default 4) |
 | `hello listen [--duration D]` | stream the DCP Hello frames devices send at start and on link up |
-| `gsdml inspect FILE` | identity, schema version, device access points, modules |
+| `gsdml inspect FILE` | identity, schema version, device access points, modules (of the first 64 device access points) |
 | `gsdml validate FILE` | structural validation (exit code 7 when it finds issues) |
 | `gsdml gsdx FILE [--extract PART [-O FILE]]` | inspect a GSDX container: parts, relationships, signature metadata (not verified), each GSDML part checked (exit code 7 on issues) |
 | `gsdml check FILE [--strict]` | the full check: errors, warnings and unvalidated content, each with its rule (exit code 7 on errors, with `--strict` on any issue) |
@@ -212,7 +212,7 @@ What go-profinet (and so profinetctl) supports and how it is tested against inde
 - OT Fabric is not a PROFIBUS & PROFINET International member: no official XSD validation, no verification of GSDX signatures (`gsdml gsdx` inspects the container), no MRCD, no certification. The full impact is in go-profinet's [docs/PI-MEMBERSHIP.md](https://github.com/otfabric/go-profinet/blob/main/docs/PI-MEMBERSHIP.md).
 - `gsdml validate` checks go-profinet's catalog of the GSDML schema (structure, types, references), not the official schemas, which PROFIBUS & PROFINET International licenses to its members: it is not PI's GSDML checker.
 - `disconnect` cannot release an AR at devices that tie it to the RPC activity of its Connect (p-net); they close it after the CM activity timeout.
-- `topology` reads devices that have an IP address; switches without PROFINET (no DCP) appear only as neighbors.
+- `topology` reads devices that have an IP address in a subnet of the interface (`--read-any-address`: any address); switches without PROFINET (no DCP) appear only as neighbors.
 - Timing of the cyclic exchange depends on the host: a general-purpose OS schedules cycles of 1 ms and up; see the jitter in `io statistics`.
 - profinetctl is not certified by PROFIBUS & PROFINET International and claims no conformance.
 

@@ -4,6 +4,7 @@ package cmd
 
 import (
 	"bytes"
+	"context"
 	"encoding/hex"
 	"encoding/json"
 	"testing"
@@ -22,7 +23,11 @@ func FuzzInspectGSDML(f *testing.F) {
 		if err != nil {
 			return
 		}
-		if _, err := json.Marshal(inspect("fuzz.xml", doc)); err != nil {
+		r, err := inspect(context.Background(), "fuzz.xml", doc)
+		if err != nil {
+			t.Fatalf("%q: %v", b, err)
+		}
+		if _, err := json.Marshal(r); err != nil {
 			t.Fatalf("%q: %v", b, err)
 		}
 	})

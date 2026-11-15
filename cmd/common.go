@@ -212,13 +212,20 @@ func (s *session) resolve(ctx context.Context, t *target) (dcp.Identity, error) 
 	}
 	cctx, cancel := context.WithTimeout(ctx, t.wait+s.a.timeout)
 	defer cancel()
-	ids, err := s.dcp.Identify(cctx, dcp.FilterName(t.station), dcp.IdentifyOptions{Wait: t.wait})
+	answers, err := s.dcp.Identify(cctx, dcp.FilterName(t.station), dcp.IdentifyOptions{Wait: t.wait})
 	if err != nil {
 		return dcp.Identity{}, classify("DCP Identify", err)
 	}
+	// Only an answer that carries the station name is the station: one with
+	// another name counts as no answer.
+	ids := stationsNamed(answers, t.station)
 	switch len(ids) {
 	case 0:
-		return dcp.Identity{}, errs.New(errs.KindNotFound, errs.CodeDeviceNotFound, fmt.Sprintf("no device answers to %s within %s", t.describe(), t.wait), nil)
+		msg := fmt.Sprintf("no device answers to %s within %s", t.describe(), t.wait)
+		if other := len(answers); other > 0 {
+			msg += fmt.Sprintf(" (%d answer(s) with another station name ignored)", other)
+		}
+		return dcp.Identity{}, errs.New(errs.KindNotFound, errs.CodeDeviceNotFound, msg, nil)
 	case 1:
 		return ids[0], nil
 	default:
@@ -229,6 +236,17 @@ func (s *session) resolve(ctx context.Context, t *target) (dcp.Identity, error) 
 		return dcp.Identity{}, errs.New(errs.KindRefused, errs.CodeDuplicateName,
 			fmt.Sprintf("%d devices answer to %s (%s): select one with --mac", len(ids), t.describe(), strings.Join(macs, ", ")), nil)
 	}
+}
+
+// stationsNamed returns the identities whose NameOfStation is name.
+func stationsNamed(ids []dcp.Identity, name string) []dcp.Identity {
+	var out []dcp.Identity
+	for _, id := range ids {
+		if id.NameOfStation == name {
+			out = append(out, id)
+		}
+	}
+	return out
 }
 
 // rpcSession is a resolved device with an RPC client for its records.

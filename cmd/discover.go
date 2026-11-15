@@ -240,6 +240,11 @@ address. Without a filter every device answers; --station, --alias, --ip and
 				if err != nil {
 					return nil, classify("DCP Identify", err)
 				}
+				if station != "" {
+					// An answer to the name filter that carries another
+					// name is not the station.
+					ids = stationsNamed(ids, station)
+				}
 				sort.Slice(ids, func(i, j int) bool { return ids[i].MAC.String() < ids[j].MAC.String() })
 				res := discoverResult{Devices: []deviceView{}}
 				names := map[string]int{}

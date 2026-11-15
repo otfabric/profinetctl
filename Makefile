@@ -178,9 +178,15 @@ examples-doc: ## Regenerate docs/EXAMPLES.md: real output against p-net and go-p
 pnet-smoke: ## Run profinetctl against p-net in Docker (needs profinet-interop's images: make images there)
 	@scripts/pnet-smoke.sh
 
+# E2E_SETCAP=1 gives the built binary CAP_NET_RAW and CAP_NET_ADMIN (Linux, with
+# sudo) for the e2e cases that listen on the interface PROFINETCTL_E2E_INTERFACE
+# names; without that variable they are skipped. CI sets both.
+E2E_SETCAP ?=
+
 e2e: ## Build the binary and run the e2e suite against it
 	@mkdir -p bin
 	@go build $(LDFLAGS) -o bin/profinetctl $(APP_SRC)
+	@if [ -n "$(E2E_SETCAP)" ]; then sudo setcap cap_net_raw,cap_net_admin+ep bin/profinetctl; fi
 	@PROFINETCTL_E2E_BIN=$(CURDIR)/bin/profinetctl PROFINETCTL_E2E_VERSION=$(VERSION) go test -count=1 -tags=e2e ./e2e/...
 
 install: build ## Install the built binary to /usr/local/bin

@@ -32,7 +32,7 @@ PROFINET IO (without the Security Class 1–3 extensions, which profinetctl does
 |---------|--------|
 | `name set`, `ip set` | change the station name or IP address; a running AR with an IO-Controller that finds the device by its name or address breaks, and the controller cannot find the device again until the name is restored |
 | `reset` | DCP ResetToFactory: erases configuration (by `--mode`) and aborts the device's ARs. It needs `--confirm` with the target's station name or MAC address |
-| `record write`, `im write` | write records in a device access AR; a parameter record changes how the device behaves |
+| `record write`, `im write` | write records in a device access AR; a parameter record changes how the device behaves. With `--gsdml` or `--model` they write in an IOCAR, with the effects of `connect` below: one controller AR, refused by a device a PLC controls, or taking the device from it when the PLC's AR is down |
 | `connect --param`, `--reparam` | write parameter records before PrmEnd, or re-parameterize the running AR: the device's behaviour changes |
 | `connect --mrp-role` | writes the MRP records of a multiport device: changes its ring redundancy role; a wrong role can open or loop a ring |
 | `connect --peer-check` | writes PDPortDataCheck: the device reports a diagnosis when the port's neighbor differs |
@@ -41,7 +41,9 @@ PROFINET IO (without the Security Class 1–3 extensions, which profinetctl does
 | `disconnect` | releases an AR: the device stops its outputs (safe state) |
 | `signal` | flashes the LED; harmless |
 
-Read-only commands (`discover`, `identify`, `name get`, `ip get`, `record read`, `im read`, `diagnostics`, `device info`, `status`, `lldp neighbors`, `topology`, `topology check`, `mrp status`) send DCP requests and ReadImplicit calls only; `hello listen` only listens, and the `gsdml` commands read local files. DCP Identify is multicast: every device on the segment answers.
+Read-only commands (`discover`, `identify`, `name get`, `ip get`, `record read`, `im read`, `diagnostics`, `device info`, `status`, `lldp neighbors`, `topology`, `topology check`, `mrp status`) send DCP requests and ReadImplicit calls only; `hello listen` only listens, and the `gsdml` commands read local files. `topology check` runs profinetctl's IO-Controller for its reads, which binds UDP port 34964 and listens for DCP Hello, as `connect` does. DCP Identify is multicast: every device on the segment answers.
+
+A command that names a device with `--station` acts only on a device whose answer carries that station name. `topology` reads only the devices whose IP address lies in a subnet of the interface (`--read-any-address` reads the others too), and its reads end after 2 × `--timeout`.
 
 ### Privileges
 
