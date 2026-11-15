@@ -23,6 +23,17 @@ ending with a `---` line and no `---` line inside a section
 
 ---
 
+## v0.13.1
+
+**Date:** 2026-11-15
+**Previous release:** v0.13.0
+
+### Changed
+
+- Built on go-profinet v0.10.0 (was v0.9.1). Its DCP responder answers Get and Set from every requester; a Set inside another requester's open Set transaction is answered with a resource error instead of being ignored. profinetctl does not run a DCP responder, so its commands behave as before.
+
+---
+
 ## v0.13.0
 
 **Date:** 2026-11-15
