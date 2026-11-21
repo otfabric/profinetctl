@@ -162,3 +162,69 @@ func TestConnectSlotsAndPeerChecks(t *testing.T) {
 	n.fails(3, "invalid_input", append(base, "--peer-check", "1=nobody")...)
 	_ = context.Background
 }
+
+// TestGSDMLCheckModel: without catalog errors, gsdml check converts each
+// device access point as --gsdml does. A Ref default go-profinet has no
+// encoding for is unvalidated (rule model; exit 0, 7 with --strict), one
+// that is wrong (a string longer than its Length) an error (exit 7); the
+// same files given to --gsdml fail with unsupported_gsdml and
+// invalid_gsdml.
+func TestGSDMLCheckModel(t *testing.T) {
+	t.Parallel()
+	n := newTestNet(t)
+	file := filepath.Join(t.TempDir(), "dev.xml")
+	n.ok("gsdml", "generate", "--model", modelFile(t), "-O", file)
+	b, err := os.ReadFile(file)
+	if err != nil {
+		t.Fatal(err)
+	}
+	const name = `<Name TextId="M2_SM1_R16"></Name>`
+	if !bytes.Contains(b, []byte(name)) {
+		t.Fatal("the generated GSDML no longer has record 16")
+	}
+	withRef := func(ref string) string {
+		return writeFile(t, "ref.xml", bytes.Replace(b, []byte(name), []byte(name+ref), 1))
+	}
+	const dapPath = "ISO15745Profile/ProfileBody/ApplicationProcess/DeviceAccessPointList/DeviceAccessPointItem[DAP]"
+
+	unsupported := withRef(`<Ref ByteOffset="0" DataType="Integer16_S" DefaultValue="1" TextId="M2_SM1_R16"/>`)
+	var r checkJSON
+	n.json(&r, "gsdml", "check", unsupported)
+	if r.Errors != 0 || r.Unvalidated != 1 || len(r.Issues) != 1 || r.Issues[0].Rule != "model" ||
+		r.Issues[0].Severity != "unvalidated" || r.Issues[0].Path != dapPath || !strings.Contains(r.Issues[0].Message, "Integer16_S") {
+		t.Fatalf("unsupported %+v", r)
+	}
+	if _, _, code := n.run("gsdml", "check", unsupported, "--strict"); code != 7 {
+		t.Fatalf("--strict exit %d", code)
+	}
+	n.fails(3, "unsupported_gsdml", "gsdml", "modules", unsupported, "--dap", "DAP")
+
+	tooLong := withRef(`<Ref ByteOffset="0" DataType="VisibleString" Length="2" DefaultValue="abc" TextId="M2_SM1_R16"/>`)
+	out, _, code := n.run("gsdml", "check", tooLong, "--format", "json")
+	if code != 7 {
+		t.Fatalf("exit %d:\n%s", code, out)
+	}
+	decode(t, out, &r)
+	if r.Errors != 1 || r.Issues[0].Rule != "model" || r.Issues[0].Severity != "error" {
+		t.Fatalf("too long %+v", r)
+	}
+	n.fails(3, "invalid_gsdml", "gsdml", "modules", tooLong, "--dap", "DAP")
+	if text := n.ok("gsdml", "check", unsupported); !strings.Contains(text, "does not convert to a model") {
+		t.Fatalf("text:\n%s", text)
+	}
+
+	// With catalog errors the conversion is left out: they are reported.
+	both := bytes.Replace(bytes.Replace(b, []byte(name), []byte(name+`<Ref ByteOffset="0" DataType="Integer16_S" DefaultValue="1" TextId="M2_SM1_R16"/>`), 1),
+		[]byte(`TextId="T_DAP_Name"`), []byte(`TextId="nothing"`), 1)
+	out, _, _ = n.run("gsdml", "check", writeFile(t, "both.xml", both), "--format", "json")
+	decode(t, out, &r)
+	for _, i := range r.Issues {
+		if i.Rule == "model" {
+			t.Fatalf("model issue next to catalog errors: %+v", r)
+		}
+	}
+
+	// A document type declaration with an internal subset is unsupported.
+	dtd := bytes.Replace(b, []byte("<ISO15745Profile"), []byte(`<!DOCTYPE ISO15745Profile [<!ENTITY e "x">]><ISO15745Profile`), 1)
+	n.fails(3, "unsupported_gsdml", "gsdml", "check", writeFile(t, "dtd.xml", dtd))
+}

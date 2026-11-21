@@ -23,6 +23,49 @@ ending with a `---` line and no `---` line inside a section
 
 ---
 
+## v0.14.0
+
+**Date:** 2026-11-22
+**Previous release:** v0.13.1
+
+Built on go-profinet v0.12.0 (was v0.10.0), whose GSDML conversion refuses
+values it used to turn into a default or write wrongly; `gsdml check`
+now shows those, and a file go-profinet does not support has its own
+error code.
+
+### Added
+
+- `gsdml check` converts each device access point to a model, as
+  `--gsdml FILE --dap ID` does, when the catalog finds no errors. One
+  that does not convert is an issue with rule `model`: an error (exit
+  code 7), or unvalidated when go-profinet does not support what the
+  file has, such as a Ref DefaultValue of type `Integer16_S` (exit code 7
+  with `--strict`). Until now a file could pass `gsdml check` and still
+  fail with `--gsdml`.
+- Error code `unsupported_gsdml` (kind `invalid_input`, exit code 3): a
+  GSDML file that go-profinet refuses as unsupported rather than
+  malformed, a document type declaration with an internal subset or a Ref
+  default of a DataType whose encoding it does not know. Those failed as
+  `invalid_gsdml` (docs/exitcodes.md).
+
+### Changed
+
+- Built on go-profinet v0.12.0. Its GSDML conversion (`--gsdml`, `gsdml
+  inspect`, `modules`, `submodules`) refuses, with `invalid_gsdml` unless
+  said: an integer Ref default in Go literal syntax (`"010"` is now ten,
+  `"0b1"` refused); a Boolean capability or Ref default other than true,
+  false, 1 or 0; a Ref BitLength or BitOffset or a Boolean capability
+  given as `""`; malformed optional
+  numbers and value lists (`MinDeviceInterval="32ms"`); a string or octet
+  default longer than its Length; and, as `unsupported_gsdml`, the cases
+  above. Each used to load with a default or a wrong record. From
+  go-profinet v0.11.0: a Ref `BitArea` without BitLength loads (BitLength
+  1), and the `module_diff` of `ar` no longer lists the matching
+  submodules of a go-profinet device.
+- `gsdml check`'s `scope` names the conversion of the device access points.
+
+---
+
 ## v0.13.1
 
 **Date:** 2026-11-15
