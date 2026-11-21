@@ -5,6 +5,7 @@ package cmd
 import (
 	"context"
 	"encoding/json"
+	"errors"
 	"fmt"
 	"sort"
 	"strconv"
@@ -12,6 +13,8 @@ import (
 	"time"
 
 	"github.com/spf13/cobra"
+
+	"github.com/otfabric/go-profinet"
 
 	"github.com/otfabric/go-profinet/controller"
 	"github.com/otfabric/go-profinet/dcp"
@@ -85,7 +88,56 @@ type checkResult struct {
 	strict        bool
 }
 
-const checkScope = "go-profinet's GSDML catalog and semantic rules (IO data length, slots, record indexes, ident numbers, subslots, reduction ratios); not PI's GSDML checker"
+const checkScope = "go-profinet's GSDML catalog and semantic rules (IO data length, slots, record indexes, ident numbers, subslots, reduction ratios) and the conversion of each device access point to a model; not PI's GSDML checker"
+
+// ruleModel is the rule of a device access point that does not convert to
+// a model (gsdml.ToModel), so that --gsdml with its ID fails.
+const ruleModel = "model"
+
+// pathID quotes an ID in an issue path as go-profinet's Check does: the
+// first 256 octets, then "...".
+func pathID(id string) string {
+	if len(id) <= 256 {
+		return id
+	}
+	return id[:256] + "..."
+}
+
+// modelIssues converts each of the first inspectDAPs device access points
+// to a model and returns an issue for each that fails: an error, or
+// unvalidated when go-profinet does not support what the file has (such
+// as a Ref DefaultValue of a DataType whose encoding it does not know),
+// which is no fault of the file. The catalog's errors are reported
+// already, and a conversion fails on most of them, so it is left out
+// when there are any.
+func modelIssues(ctx context.Context, doc *gsdml.Document) ([]gsdml.Issue, error) {
+	pb := doc.ProfileBody
+	if pb == nil || pb.ApplicationProcess == nil || pb.ApplicationProcess.DeviceAccessPointList == nil {
+		return nil, nil
+	}
+	var out []gsdml.Issue
+	for i, d := range pb.ApplicationProcess.DeviceAccessPointList.DeviceAccessPointItems {
+		if i >= inspectDAPs {
+			break
+		}
+		if err := interrupted(ctx); err != nil {
+			return nil, err
+		}
+		if _, err := gsdml.ToModel(doc, d.ID); err != nil {
+			sev := gsdml.SeverityError
+			if errors.Is(err, profinet.ErrUnsupported) {
+				sev = gsdml.SeverityUnvalidated
+			}
+			out = append(out, gsdml.Issue{
+				Path:     "ISO15745Profile/ProfileBody/ApplicationProcess/DeviceAccessPointList/DeviceAccessPointItem[" + pathID(d.ID) + "]",
+				Message:  "does not convert to a model: " + err.Error(),
+				Severity: sev,
+				Rule:     ruleModel,
+			})
+		}
+	}
+	return out, nil
+}
 
 func (r checkResult) MarshalTextOutput() (string, error) {
 	var b strings.Builder
@@ -123,7 +175,10 @@ func newGSDMLCheckCmd(a *app) *cobra.Command {
 as validate does, the semantic rules (IO data that does not fit an RT frame is an
 error; slots, record indexes, module ident numbers, port subslots and reduction
 ratios are warnings, each with its basis), and what was not validated (elements
-outside the catalog, newer schema versions). Exit code 7 when there are errors,
+outside the catalog, newer schema versions). Without catalog errors, each device
+access point is converted to a model as --gsdml does: one that fails is an error
+(rule model), or unvalidated when go-profinet does not support what the file has
+(an encoding it does not know). Exit code 7 when there are errors,
 or with --strict any issue. This is not PI's GSDML checker.`,
 		Args: cobra.ExactArgs(1),
 		RunE: func(c *cobra.Command, args []string) error {
@@ -135,6 +190,13 @@ or with --strict any issue. This is not PI's GSDML checker.`,
 				rep := gsdml.Check(doc)
 				if err := interrupted(ctx); err != nil {
 					return nil, err
+				}
+				if rep.Count(gsdml.SeverityError) == 0 {
+					mi, err := modelIssues(ctx, doc)
+					if err != nil {
+						return nil, err
+					}
+					rep.Issues = append(rep.Issues, mi...)
 				}
 				r := checkResult{File: args[0], SchemaVersion: rep.SchemaVersion, Issues: rep.Issues, Scope: checkScope, strict: strict,
 					Errors: rep.Count(gsdml.SeverityError), Warnings: rep.Count(gsdml.SeverityWarning), Unvalidated: rep.Count(gsdml.SeverityUnvalidated)}

@@ -6,7 +6,7 @@
 |------|---------|
 | 0 | Success |
 | 2 | Usage (`usage`): unknown command or flag, a missing required flag, no device selected (`--station` or `--mac`), both selections, a missing `--confirm` for `reset` or one that names another device |
-| 3 | Invalid input (`invalid_input`): a flag value, environment variable, GSDML file or model that does not make sense (a negative duration, a zero cycle factor, a send clock × reduction ratio above 65535, an address that is no host address, an input file above 16 MiB), an interface that does not exist. Nothing was sent |
+| 3 | Invalid input (`invalid_input`): a flag value, environment variable, GSDML file or model that does not make sense, or a GSDML file with content go-profinet does not support (`unsupported_gsdml`) (a negative duration, a zero cycle factor, a send clock × reduction ratio above 65535, an address that is no host address, an input file above 16 MiB), an interface that does not exist. Nothing was sent |
 | 4 | Transport (`transport`): the interface cannot be opened, a socket cannot be bound or fails |
 | 5 | Timeout (`timeout`): the device did not answer a DCP request or an RPC call in time (`--timeout`), or an AR did not reach Running within `--connect-timeout` |
 | 6 | Refused or protocol error (`refused`, `protocol`): the device answered with a PNIO error status, refused a DCP Set with a block error, rejected the Connect, or answered with a malformed frame; more than one device answers to the station name, or more than 4096 devices answer the DCP Identify of a lookup by station name, so that the station cannot be told apart (`duplicate_station_name`; nothing is sent); a device has no IP address for RPC |
@@ -22,7 +22,7 @@
 | `kind` | `code` values |
 |--------|---------------|
 | `usage` | `invalid_input`, `invalid_flag_combination`, `confirmation_required` |
-| `invalid_input` | `invalid_input`, `invalid_format`, `invalid_flag_combination`, `invalid_gsdml`, `invalid_model`, `input_file_open_failed`, `output_file_create_failed`, `interface_open_failed` (no such interface) |
+| `invalid_input` | `invalid_input`, `invalid_format`, `invalid_flag_combination`, `invalid_gsdml`, `unsupported_gsdml` (a document type declaration with an internal subset, a Ref DefaultValue of a DataType whose encoding go-profinet does not know: the file may be valid), `invalid_model`, `input_file_open_failed`, `output_file_create_failed`, `interface_open_failed` (no such interface) |
 | `transport` | `interface_open_failed`, `socket_failed` |
 | `timeout` | `request_timeout`, `connect_failed` |
 | `refused` | `pnio_error` (the message names the status: ErrorCode, ErrorDecode, ErrorCode1, ErrorCode2), `dcp_block_error`, `connect_failed`, `duplicate_station_name`, `invalid_input` (no IP address) |

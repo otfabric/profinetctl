@@ -16,6 +16,7 @@ import (
 
 	"github.com/spf13/cobra"
 
+	"github.com/otfabric/go-profinet"
 	"github.com/otfabric/go-profinet/gsdml"
 	"github.com/otfabric/go-profinet/model"
 
@@ -32,9 +33,19 @@ func readGSDML(path string) (*gsdml.Document, error) {
 	defer func() { _ = f.Close() }()
 	doc, err := gsdml.Parse(f)
 	if err != nil {
-		return nil, errs.InvalidInput(errs.CodeInvalidGSDML, fmt.Sprintf("%s: %v", path, err), err)
+		return nil, gsdmlError(fmt.Sprintf("%s: %v", path, err), err)
 	}
 	return doc, nil
+}
+
+// gsdmlError is the typed error of a GSDML file go-profinet refused:
+// unsupported_gsdml when it does not support what the file has, otherwise
+// invalid_gsdml. Both are invalid input (exit code 3): nothing was sent.
+func gsdmlError(msg string, err error) error {
+	if errors.Is(err, profinet.ErrUnsupported) {
+		return errs.InvalidInput(errs.CodeUnsupportedGSDML, msg, err)
+	}
+	return errs.InvalidInput(errs.CodeInvalidGSDML, msg, err)
 }
 
 // loadModel reads the expected configuration of a device: a GSDML file
@@ -50,7 +61,7 @@ func loadModel(gsdmlFile, dap, modelFile string) (*model.Device, error) {
 		}
 		m, err := gsdml.ToModel(doc, dap)
 		if err != nil {
-			return nil, errs.InvalidInput(errs.CodeInvalidGSDML, fmt.Sprintf("%s: %v", gsdmlFile, err), err)
+			return nil, gsdmlError(fmt.Sprintf("%s: %v", gsdmlFile, err), err)
 		}
 		return m, nil
 	case modelFile != "":

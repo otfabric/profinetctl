@@ -126,7 +126,7 @@ A missing privilege exits with code 9 and the error code `permission_denied` ([d
 | `gsdml inspect FILE` | identity, schema version, device access points, modules (of the first 64 device access points) |
 | `gsdml validate FILE` | structural validation (exit code 7 when it finds issues) |
 | `gsdml gsdx FILE [--extract PART [-O FILE]]` | inspect a GSDX container: parts, relationships, signature metadata (not verified), each GSDML part checked (exit code 7 on issues) |
-| `gsdml check FILE [--strict]` | the full check: errors, warnings and unvalidated content, each with its rule (exit code 7 on errors, with `--strict` on any issue) |
+| `gsdml check FILE [--strict]` | the full check: errors, warnings and unvalidated content, each with its rule, and whether each device access point converts to a model as `--gsdml` needs (exit code 7 on errors, with `--strict` on any issue) |
 | `gsdml modules FILE`, `gsdml submodules FILE` | the module and submodule types, with IO lengths and records |
 | `gsdml generate --model MODEL.json [--output-file FILE\|DIR] [--pnio-version V] [--device-access=false]` | the GSDML file of a go-profinet device model (`--output-file`/`-O`: a file, or a directory for the conventional name; `--pnio-version`: declared PNIO_Version, default V2.35; `--device-access`: declare DeviceAccessSupported, default true) |
 | `connect` | establish an AR as IO-Controller and run it: states and alarms are streamed, then a summary; `--slot N` expects only some modules (shared device: another controller owns the rest), `--peer-check PORT=STATION/PORT` has the device watch a port's neighbor, `--mrp-role client\|manager\|off` gives a multiport device its MRP role, `--reparam SLOT:SUBSLOT:INDEX:HEX` re-parameterizes the running AR (PrmBegin … PrmEnd) |

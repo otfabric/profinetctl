@@ -88,7 +88,12 @@ const (
 	CodeConfirmationRequired   = "confirmation_required"
 	CodeInputFileOpenFailed    = "input_file_open_failed"
 	CodeInvalidGSDML           = "invalid_gsdml"
-	CodeInvalidModel           = "invalid_model"
+	// CodeUnsupportedGSDML is a GSDML file go-profinet refuses as
+	// unsupported rather than malformed: a document type declaration with
+	// an internal subset, or a Ref DefaultValue of a DataType whose
+	// encoding it does not know. The file may be valid.
+	CodeUnsupportedGSDML = "unsupported_gsdml"
+	CodeInvalidModel     = "invalid_model"
 
 	CodeInterfaceOpenFailed = "interface_open_failed"
 	CodePermissionDenied    = "permission_denied"
