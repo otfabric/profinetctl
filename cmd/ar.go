@@ -45,6 +45,8 @@ type arOptions struct {
 	permanentIP     bool
 	outputs         []string
 	params          []string
+	paramValues     []string
+	paramDefaults   bool
 	connectTimeout  time.Duration
 	rpcPort         int
 	controllerName  string
@@ -81,6 +83,7 @@ func addAROptions(c *cobra.Command, o *arOptions) {
 	f.BoolVar(&o.permanentIP, "permanent-ip", false, "With --assign-ip: store the address permanently")
 	f.StringArrayVar(&o.outputs, "output", nil, "Set output data: SLOT:SUBSLOT:HEX (repeatable); outputs not given are zero with IOPS bad")
 	f.StringArrayVar(&o.params, "param", nil, "Write a parameter record before PrmEnd: SLOT:SUBSLOT:INDEX:HEX (repeatable)")
+	addPlanFlags(f, &o.paramValues, &o.paramDefaults)
 	f.DurationVar(&o.connectTimeout, "connect-timeout", 20*time.Second, "How long to wait for the AR to reach Running")
 	f.IntVar(&o.rpcPort, "rpc-port", rpc.Port, "UDP port of the controller's RPC server (devices send ApplicationReady to it)")
 	f.StringVar(&o.controllerName, "controller-name", "profinetctl", "Station name of the controller in the AR")
@@ -98,6 +101,9 @@ type parsedAR struct {
 	cfg      controller.DeviceConfig
 	outputs  []outputValue
 	reparams []controller.Parameter
+	// planWarnings are the issues of the parameter plan that do not stop
+	// it: written to stderr before the AR is established.
+	planWarnings []gsdml.Issue
 }
 
 type outputValue struct {
@@ -235,6 +241,22 @@ func (o *arOptions) parse() (*parsedAR, error) {
 			return nil, bad("param", fmt.Errorf("%q: %w", par, err))
 		}
 		p.cfg.Parameters = append(p.cfg.Parameters, controller.Parameter{Slot: slot, Subslot: sub, Index: pnio.Index(idx), Data: data})
+	}
+	if len(o.paramValues) > 0 || o.paramDefaults {
+		if doc == nil {
+			return nil, errs.New(errs.KindUsage, errs.CodeInvalidFlagCombination, "--param-value and --param-defaults need --gsdml: a model in JSON has no parameter fields", nil)
+		}
+		plan, err := planOf(doc, m, o.dap, o.paramValues, o.paramDefaults)
+		if err != nil {
+			if _, typed := errs.As(err); typed {
+				return nil, err
+			}
+			return nil, planError(err)
+		}
+		if err := addPlan(&p.cfg, plan); err != nil {
+			return nil, err
+		}
+		p.planWarnings = planWarnings(plan)
 	}
 	for _, par := range o.reparams {
 		f, err := splitAddr(par, 4)
@@ -483,6 +505,9 @@ func stamp() string { return time.Now().Format("15:04:05.000") }
 
 // establish starts the controller, adds the device and waits for Running.
 func (a *app) establish(ctx context.Context, o *arOptions, p *parsedAR) (*arSession, error) {
+	for _, i := range p.planWarnings {
+		_, _ = fmt.Fprintf(a.stderr, "warning: parameter plan: %s\n", format.SafeText(issueText(i)))
+	}
 	s, err := a.open()
 	if err != nil {
 		return nil, err

@@ -62,6 +62,22 @@ type recorder struct {
 	mu      sync.Mutex
 	signals int
 	resets  []uint16
+	// writes are the record writes the device stored, "SLOT:SUBSLOT:INDEX"
+	// to hex, in the order of the writes.
+	writes []string
+}
+
+func (r *recorder) WriteRecord(_ context.Context, q device.RecordRequest, data []byte) error {
+	r.mu.Lock()
+	r.writes = append(r.writes, fmt.Sprintf("%d:%d:%d=%x", q.Slot, q.Subslot, q.Index, data))
+	r.mu.Unlock()
+	return nil
+}
+
+func (r *recorder) recordWrites() []string {
+	r.mu.Lock()
+	defer r.mu.Unlock()
+	return append([]string(nil), r.writes...)
 }
 
 func (r *recorder) Signal() {
