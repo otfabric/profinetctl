@@ -15,6 +15,7 @@ import (
 
 	"github.com/otfabric/go-profinet/controller"
 	"github.com/otfabric/go-profinet/device"
+	"github.com/otfabric/go-profinet/gsdml"
 	"github.com/otfabric/go-profinet/pnio"
 	"github.com/otfabric/go-profinet/rpc"
 )
@@ -234,6 +235,18 @@ func TestConnectErrors(t *testing.T) {
 	if code != 0 || !strings.Contains(out, `"event":"module-diff"`) || !strings.Contains(errOut, "warning: the real configuration differs from the expected one: slot 3: wrong module 0x00000030") {
 		t.Fatalf("module diff %d\n%s\n%s", code, out, errOut)
 	}
+	// A slot the GSDML file does not allow the module in: refused before
+	// anything is sent, unless --plug-any-slot.
+	if msg := n.fails(3, "invalid_input", append(append([]string{}, base...), "--plug", "4=0x40")...); !strings.Contains(msg, `has no slot 4 (PhysicalSlots "0..3")`) {
+		t.Fatalf("physical slots: %s", msg)
+	}
+	if msg := n.fails(3, "invalid_input", append(append([]string{}, base...), "--plug", "3=0x10")...); !strings.Contains(msg, "allows module 0x00000010 in slots 1 only (AllowedInSlots)") {
+		t.Fatalf("allowed slots: %s", msg)
+	}
+	out, errOut, code = n.run(append(append([]string{}, base...), "--plug", "3=0x10", "--plug-any-slot", "--format", "json")...)
+	if code != 0 || !strings.Contains(out, `"event":"module-diff"`) || !strings.Contains(errOut, "slot 3: wrong module 0x00000030") {
+		t.Fatalf("--plug-any-slot %d\n%s\n%s", code, out, errOut)
+	}
 	// No such device.
 	n.fails(11, "", "-i", "pn0", "connect", "-s", "nobody", "--gsdml", gf, "--connect-timeout", "1500ms")
 	// A bad model file.
@@ -245,14 +258,72 @@ func TestConnectErrors(t *testing.T) {
 func TestPlug(t *testing.T) {
 	t.Parallel()
 	m := testModel()
-	if err := plug(m, []string{"4=0x40", "1=0x40"}); err != nil {
+	if err := plug(m, []string{"4=0x40", "1=0x40"}, nil); err != nil {
 		t.Fatal(err)
 	}
 	if len(m.Slots) != 4 || m.Slots[0].Module.IdentNumber != 0x40 || m.Slots[3].Number != 4 {
 		t.Fatalf("slots %+v", m.Slots)
 	}
-	if err := plug(m, []string{"0=0x40"}); err == nil {
+	if err := plug(m, []string{"0=0x40"}, nil); err == nil {
 		t.Fatal("slot 0 plugged")
+	}
+}
+
+// The slot rules of --plug: PhysicalSlots, and AllowedInSlots of every
+// reference to the module; a list that is absent or does not parse allows
+// every slot.
+func TestPlugSlotRules(t *testing.T) {
+	t.Parallel()
+	doc := &gsdml.Document{ProfileBody: &gsdml.ProfileBody{ApplicationProcess: &gsdml.ApplicationProcess{
+		DeviceAccessPointList: &gsdml.DeviceAccessPointList{DeviceAccessPointItems: []*gsdml.DeviceAccessPointItem{
+			{ID: "A", PhysicalSlots: "0..8", UseableModules: &gsdml.UseableModules{ModuleItemRefs: []*gsdml.ModuleItemRef{
+				{ModuleItemTarget: "M1", AllowedInSlots: "1..2"},
+				{ModuleItemTarget: "M2", AllowedInSlots: "3"}, {ModuleItemTarget: "M2b", AllowedInSlots: "5"},
+				{ModuleItemTarget: "M3"},
+				{ModuleItemTarget: "M4", AllowedInSlots: "x"},
+				{ModuleItemTarget: "Mnone", AllowedInSlots: "1"},
+			}}},
+			{ID: "B", PhysicalSlots: "not a list"},
+		}},
+		ModuleList: &gsdml.ModuleList{ModuleItems: []*gsdml.ModuleItem{
+			{ID: "M1", ModuleIdentNumber: "0x10"}, {ID: "M2", ModuleIdentNumber: "0x20"}, {ID: "M2b", ModuleIdentNumber: "0x20"},
+			{ID: "M3", ModuleIdentNumber: "0x30"}, {ID: "M4", ModuleIdentNumber: "0x40"}, {ID: "Mnone", ModuleIdentNumber: "none"},
+		}},
+	}}}
+	a := slotRulesOf(doc, "")
+	if a == nil || a.dap != "A" || slotRulesOf(doc, "A").dap != "A" {
+		t.Fatalf("first DAP: %+v", a)
+	}
+	for _, c := range []struct {
+		slot  uint16
+		ident uint32
+		want  string
+	}{
+		{1, 0x10, ""}, {2, 0x10, ""}, {3, 0x10, "in slots 1..2 only"},
+		{3, 0x20, ""}, {5, 0x20, ""}, {4, 0x20, "in slots 3, 5 only"},
+		{7, 0x30, ""}, {7, 0x40, ""}, {7, 0x99, ""},
+		{9, 0x30, `has no slot 9 (PhysicalSlots "0..8")`},
+	} {
+		err := a.check("p", c.slot, c.ident)
+		if (c.want == "") != (err == nil) || (err != nil && !strings.Contains(err.Error(), c.want)) {
+			t.Errorf("slot %d module 0x%X: %v, want %q", c.slot, c.ident, err, c.want)
+		}
+	}
+	// A PhysicalSlots that does not parse is not checked.
+	if b := slotRulesOf(doc, "B"); b == nil || b.check("p", 999, 0x10) != nil {
+		t.Fatalf("B: %+v", b)
+	}
+	var none *slotRules
+	if none.check("p", 9, 0x10) != nil || slotRulesOf(doc, "C") != nil || slotRulesOf(&gsdml.Document{}, "") != nil {
+		t.Fatal("no rules")
+	}
+	long := strings.Repeat("1 ", 40)
+	if got := clipList(long); len(got) != 67 || !strings.HasSuffix(got, "...") {
+		t.Fatalf("clip %q", got)
+	}
+	m := testModel()
+	if err := plug(m, []string{"3=0x40"}, &slotRules{dap: "D", physical: "0..3", allowed: map[uint32][]string{0x40: {"1"}}}); err == nil {
+		t.Fatal("plugged where it is not allowed")
 	}
 }
 

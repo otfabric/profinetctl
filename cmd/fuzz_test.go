@@ -19,11 +19,15 @@ func FuzzInspectGSDML(f *testing.F) {
 	f.Add([]byte(`<ISO15745Profile schemaLocation="GSDML-DeviceProfile-V2.44.xsd"/>`))
 	f.Add([]byte(`<`))
 	f.Fuzz(func(t *testing.T, b []byte) {
-		doc, err := gsdml.Parse(bytes.NewReader(b))
+		rep, err := gsdml.CheckBytes(b)
 		if err != nil {
 			return
 		}
-		r, err := inspect(context.Background(), "fuzz.xml", doc)
+		doc, err := gsdml.ParseBytes(b)
+		if err != nil {
+			t.Fatalf("%q: CheckBytes accepted what ParseBytes refuses: %v", b, err)
+		}
+		r, err := inspect(context.Background(), "fuzz.xml", doc, rep, againstSchema)
 		if err != nil {
 			t.Fatalf("%q: %v", b, err)
 		}

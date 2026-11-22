@@ -23,6 +23,49 @@ ending with a `---` line and no `---` line inside a section
 
 ---
 
+## v0.16.0
+
+**Date:** 2026-11-22
+**Previous release:** v0.15.1
+
+## Summary
+
+Three places where profinetctl said less than it checked, or more than it
+should accept: `gsdml inspect` now gives the validity `gsdml validate`
+gives, `gsdml check` reports the device access points it does not convert,
+and `--plug` keeps to the slots the GSDML file allows a module in.
+
+### Breaking
+
+- **`gsdml inspect`**: `Valid` (JSON `valid`, `issues`) is what `gsdml
+  validate` reports for the file: its structure against the GSDML schema of
+  its version, and the semantic rules that are errors.
+  - Before, inspect checked go-profinet's version-independent catalog, so
+    it could say "yes" for a file that `gsdml validate` refuses.
+  - `--against catalog` gives the old result. A new `Checked:` line (JSON
+    `scope`) says what was checked.
+- **`--plug`** (`connect`, `ar`, `iocr`, `io`, `alarms` with `--gsdml`):
+  a module is refused with `invalid_input`, exit code 3, before anything is
+  sent, in a slot that is
+  - not among the device access point's `PhysicalSlots`, or
+  - not in the module's `AllowedInSlots`.
+  - A list that is absent or does not parse is not checked. These are the
+    lists of go-profinet's slot rule (`gsdml check`, rule `slots`).
+  - `FixedInSlots` is not enforced: `--plug` still replaces a module the
+    file fixes.
+  - `--plug-any-slot` restores the old behaviour, to test how a device
+    answers a module in the wrong slot. With `--model` nothing is checked,
+    as before.
+
+### Fixed
+
+- **`gsdml check`**: a file with more than 64 device access points has one
+  `unvalidated` issue, rule `model`, path `…/DeviceAccessPointList`, for
+  those after the first 64. Before, they were not converted to a model, and
+  nothing said so. With `--strict` it gives exit code 7.
+
+---
+
 ## v0.15.1
 
 **Date:** 2026-11-22

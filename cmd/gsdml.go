@@ -51,34 +51,41 @@ func gsdmlError(msg string, err error) error {
 // loadModel reads the expected configuration of a device: a GSDML file
 // (with the ID of its device access point) or a model in JSON.
 func loadModel(gsdmlFile, dap, modelFile string) (*model.Device, error) {
+	m, _, err := loadModelDoc(gsdmlFile, dap, modelFile)
+	return m, err
+}
+
+// loadModelDoc is loadModel, with the GSDML document the model is of: nil
+// for a model in JSON.
+func loadModelDoc(gsdmlFile, dap, modelFile string) (*model.Device, *gsdml.Document, error) {
 	switch {
 	case gsdmlFile != "" && modelFile != "":
-		return nil, errs.New(errs.KindUsage, errs.CodeInvalidFlagCombination, "--gsdml and --model both describe the device: give one", nil)
+		return nil, nil, errs.New(errs.KindUsage, errs.CodeInvalidFlagCombination, "--gsdml and --model both describe the device: give one", nil)
 	case gsdmlFile != "":
 		doc, err := readGSDML(gsdmlFile)
 		if err != nil {
-			return nil, err
+			return nil, nil, err
 		}
 		m, err := gsdml.ToModel(doc, dap)
 		if err != nil {
-			return nil, gsdmlError(fmt.Sprintf("%s: %v", gsdmlFile, err), err)
+			return nil, nil, gsdmlError(fmt.Sprintf("%s: %v", gsdmlFile, err), err)
 		}
-		return m, nil
+		return m, doc, nil
 	case modelFile != "":
 		b, err := readInputFile(modelFile)
 		if err != nil {
-			return nil, errs.InvalidInput(errs.CodeInputFileOpenFailed, fmt.Sprintf("model file: %v", err), err)
+			return nil, nil, errs.InvalidInput(errs.CodeInputFileOpenFailed, fmt.Sprintf("model file: %v", err), err)
 		}
 		var m model.Device
 		if err := json.Unmarshal(b, &m); err != nil {
-			return nil, errs.InvalidInput(errs.CodeInvalidModel, fmt.Sprintf("%s: %v", modelFile, err), err)
+			return nil, nil, errs.InvalidInput(errs.CodeInvalidModel, fmt.Sprintf("%s: %v", modelFile, err), err)
 		}
 		if err := m.Validate(); err != nil {
-			return nil, errs.InvalidInput(errs.CodeInvalidModel, fmt.Sprintf("%s: %v", modelFile, err), err)
+			return nil, nil, errs.InvalidInput(errs.CodeInvalidModel, fmt.Sprintf("%s: %v", modelFile, err), err)
 		}
-		return &m, nil
+		return &m, nil, nil
 	default:
-		return nil, errs.New(errs.KindUsage, errs.CodeInvalidInput, "no device description: give --gsdml FILE (and --dap ID) or --model FILE", nil)
+		return nil, nil, errs.New(errs.KindUsage, errs.CodeInvalidInput, "no device description: give --gsdml FILE (and --dap ID) or --model FILE", nil)
 	}
 }
 
@@ -105,8 +112,12 @@ type inspectResult struct {
 	VendorName    string    `json:"vendor_name"`
 	Family        string    `json:"family,omitempty"`
 	DAPs          []dapView `json:"device_access_points"`
-	Valid         bool      `json:"valid"`
-	Issues        int       `json:"issues"`
+	// Valid and Issues are what gsdml validate reports: the errors of the
+	// structure (against Scope) and of the semantic rules that are errors.
+	Valid  bool `json:"valid"`
+	Issues int  `json:"issues"`
+	// Scope says what the validation covers, as gsdml validate does.
+	Scope string `json:"scope"`
 }
 
 func (r inspectResult) MarshalTextOutput() (string, error) {
@@ -126,6 +137,7 @@ func (r inspectResult) MarshalTextOutput() (string, error) {
 		valid = fmt.Sprintf("no, %d issue(s): see profinetctl gsdml validate", r.Issues)
 	}
 	fmt.Fprintf(&b, "Valid:    %s\n", valid)
+	fmt.Fprintf(&b, "Checked:  %s\n", r.Scope)
 	fmt.Fprintf(&b, "Device access points: %d\n", len(r.DAPs))
 	for _, d := range r.DAPs {
 		fmt.Fprintf(&b, "  %s  %q ident %s class %s, %d port(s), %d plugged slot(s), %d usable module(s)", d.ID, d.Name, d.IdentNumber, orDash(d.ConformanceClass), d.Ports, d.PlugSlots, d.Modules)
@@ -167,7 +179,9 @@ func interrupted(ctx context.Context) error {
 	return nil
 }
 
-func inspect(ctx context.Context, path string, doc *gsdml.Document) (inspectResult, error) {
+// inspect summarizes a GSDML file. Its validity is that of gsdml validate:
+// the errors of rep, the report of checkFile with against.
+func inspect(ctx context.Context, path string, doc *gsdml.Document, rep gsdml.Report, against string) (inspectResult, error) {
 	r := inspectResult{File: path, DAPs: []dapView{}}
 	for _, at := range doc.Attrs {
 		if m := schemaVersionRE.FindStringSubmatch(at.Value); m != nil {
@@ -208,11 +222,12 @@ func inspect(ctx context.Context, path string, doc *gsdml.Document) (inspectResu
 			}
 		}
 	}
-	err := gsdml.Validate(doc)
-	r.Valid = err == nil
-	if ve, ok := errors.AsType[*gsdml.ValidationError](err); ok {
-		r.Issues = len(ve.Issues)
+	if rep.SchemaVersion != "" {
+		r.SchemaVersion = rep.SchemaVersion
 	}
+	r.Issues = len(validationErrors(rep))
+	r.Valid = r.Issues == 0
+	r.Scope = structureScope(against, rep.SchemaVersion) + validationScope
 	return r, interrupted(ctx)
 }
 
@@ -224,6 +239,18 @@ type validateResult struct {
 	Issues        []gsdml.Issue `json:"issues"`
 	// Scope says what the validation covers, and what it does not.
 	Scope string `json:"scope"`
+}
+
+// validationErrors are the issues of a report that make a file invalid:
+// what gsdml validate lists.
+func validationErrors(rep gsdml.Report) []gsdml.Issue {
+	out := []gsdml.Issue{}
+	for _, i := range rep.Issues {
+		if i.Severity == gsdml.SeverityError {
+			out = append(out, i)
+		}
+	}
+	return out
 }
 
 // validationScope follows structureScope: what validate checks besides.
@@ -378,20 +405,27 @@ func (r generateResult) TableRows() [][]string  { return [][]string{{r.File, fmt
 
 func newGSDMLCmd(a *app) *cobra.Command {
 	g := groupCmd("gsdml", "Inspect, validate and generate GSDML device descriptions")
+	var inspectAgainst string
 	inspectCmd := &cobra.Command{
 		Use:   "inspect FILE",
 		Short: "Summarize a GSDML file: identity, device access points, modules",
-		Args:  cobra.ExactArgs(1),
+		Long: `Summarize a GSDML file: its identity, and each device access point converted
+to a model (the first 64). Whether the file is valid is what gsdml validate
+reports, with the same --against: the structure against the GSDML schema of the
+file's version, or go-profinet's catalog. This is not PI's GSDML checker.`,
+		Args:    cobra.ExactArgs(1),
+		PreRunE: func(*cobra.Command, []string) error { return checkAgainst(inspectAgainst) },
 		RunE: func(c *cobra.Command, args []string) error {
 			return a.result(c, func(ctx context.Context) (any, error) {
-				doc, err := readGSDML(args[0])
+				rep, doc, err := checkFile(args[0], inspectAgainst)
 				if err != nil {
 					return nil, err
 				}
-				return inspect(ctx, args[0], doc)
+				return inspect(ctx, args[0], doc, rep, inspectAgainst)
 			})
 		},
 	}
+	inspectCmd.Flags().StringVar(&inspectAgainst, "against", againstSchema, "Validate the structure against the schema of the file's version (schema) or go-profinet's catalog (catalog)")
 	var against string
 	validateCmd := &cobra.Command{
 		Use:   "validate FILE",
@@ -413,13 +447,8 @@ profinetctl, and this is not PI's GSDML checker.`,
 				if err != nil {
 					return nil, err
 				}
-				r := validateResult{File: args[0], SchemaVersion: rep.SchemaVersion, Valid: true, Issues: []gsdml.Issue{},
+				r := validateResult{File: args[0], SchemaVersion: rep.SchemaVersion, Issues: validationErrors(rep),
 					Scope: structureScope(against, rep.SchemaVersion) + validationScope}
-				for _, i := range rep.Issues {
-					if i.Severity == gsdml.SeverityError {
-						r.Issues = append(r.Issues, i)
-					}
-				}
 				r.Valid = len(r.Issues) == 0
 				return r, interrupted(ctx)
 			})

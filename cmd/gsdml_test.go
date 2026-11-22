@@ -6,6 +6,8 @@ import (
 	"bytes"
 	"context"
 	"fmt"
+	"os"
+	"regexp"
 	"strconv"
 	"strings"
 	"testing"
@@ -54,6 +56,57 @@ func TestInspectConvertsTheFirstDAPs(t *testing.T) {
 			if i >= inspectDAPs && (d.Error != "not converted: more than 64 device access points" || d.IdentNumber == "" || d.ID == "") {
 				t.Fatalf("%d DAPs: DAP %d %+v", count, i, d)
 			}
+		}
+	}
+}
+
+// uniqueDAPsFile is dapsFile with the submodule IDs of each copy made
+// unique: check converts to a model only a file without errors.
+func uniqueDAPsFile(t *testing.T, n int) string {
+	t.Helper()
+	b, err := os.ReadFile(dapsFile(t, n))
+	if err != nil {
+		t.Fatal(err)
+	}
+	seen := map[string]int{}
+	b = regexp.MustCompile(`ID="(DAP_SM1|IF32768|Port32769)"`).ReplaceAllFunc(b, func(m []byte) []byte {
+		id := string(m[4 : len(m)-1])
+		seen[id]++
+		return fmt.Appendf(nil, `ID="%s_%d"`, id, seen[id])
+	})
+	return writeFile(t, "unique-daps.xml", b)
+}
+
+// gsdml check converts the first 64 device access points to a model; the
+// others are one unvalidated issue, not skipped in silence.
+func TestCheckReportsUnconvertedDAPs(t *testing.T) {
+	t.Parallel()
+	n := newTestNet(t)
+	for _, count := range []int{inspectDAPs, inspectDAPs + 1, 200} {
+		var c checkJSON
+		out, _, code := n.run("gsdml", "check", uniqueDAPsFile(t, count), "--format", "json")
+		decode(t, out, &c)
+		var unconverted []string
+		for _, i := range c.Issues {
+			if i.Rule == ruleModel {
+				if i.Severity != "unvalidated" || !strings.HasSuffix(i.Path, "/DeviceAccessPointList") {
+					t.Fatalf("%d DAPs: %+v", count, i)
+				}
+				unconverted = append(unconverted, i.Message)
+			}
+		}
+		if count <= inspectDAPs {
+			if len(unconverted) != 0 || code != 0 {
+				t.Fatalf("%d DAPs: exit %d %v", count, code, unconverted)
+			}
+			continue
+		}
+		want := fmt.Sprintf("%d of %d device access points not converted to a model: check converts the first 64", count-inspectDAPs, count)
+		if len(unconverted) != 1 || unconverted[0] != want || c.Unvalidated == 0 || code != 0 {
+			t.Fatalf("%d DAPs: exit %d %+v", count, code, c)
+		}
+		if _, _, code := n.run("gsdml", "check", uniqueDAPsFile(t, count), "--strict"); code != 7 {
+			t.Fatalf("%d DAPs --strict: exit %d", count, code)
 		}
 	}
 }
