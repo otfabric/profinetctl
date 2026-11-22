@@ -329,22 +329,14 @@ checked: the GSDML schema of version 2.35 (go-profinet's model generated from PI
 
 ```console
 $ profinetctl gsdml generate --model pnet-model.json -O pnet-generated.xml
-wrote pnet-generated.xml (8207 octets)
+wrote pnet-generated.xml (8435 octets)
 ```
 
 ```console
 $ profinetctl gsdml check pnet-generated.xml
-error       schema         line 81: ISO15745Profile/ProfileBody/ApplicationProcess/ModuleList/ModuleItem/VirtualSubmoduleList/VirtualSubmoduleItem/RecordDataList/ParameterRecordDataItem: missing child element (expected: Const, Ref)
-error       schema         line 84: ISO15745Profile/ProfileBody/ApplicationProcess/ModuleList/ModuleItem/VirtualSubmoduleList/VirtualSubmoduleItem/RecordDataList/ParameterRecordDataItem: missing child element (expected: Const, Ref)
-error       schema         line 112: ISO15745Profile/ProfileBody/ApplicationProcess/ModuleList/ModuleItem/VirtualSubmoduleList/VirtualSubmoduleItem/RecordDataList/ParameterRecordDataItem: missing child element (expected: Const, Ref)
-pnet-generated.xml: 3 error(s), 0 warning(s), 0 unvalidated
+pnet-generated.xml: 0 error(s), 0 warning(s), 0 unvalidated
 checked: the GSDML schema of version 2.35 (go-profinet's model generated from PI's reference schemas, checked against xmllint), go-profinet's semantic rules (IO data length, slots, record indexes, ident numbers, subslots, reduction ratios) and the conversion of each device access point to a model; not PI's GSDML checker
 ```
-
-go-profinet v0.14.0 writes a parameter record without a default value
-(`gsdml generate`, `gsdml.FromModel`) with no `Const` element, which the
-V2.35 schema requires (as every schema from V2.31 does); the catalog does not, and `--against catalog` reports no
-error.
 
 ## Application relationships and cyclic data
 

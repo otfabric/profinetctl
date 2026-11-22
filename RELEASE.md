@@ -23,6 +23,34 @@ ending with a `---` line and no `---` line inside a section
 
 ---
 
+## v0.15.1
+
+**Date:** 2026-11-22
+**Previous release:** v0.15.0
+
+## Summary
+
+Built on go-profinet v0.14.1. The file `gsdml generate` writes for a model
+with a parameter record without a default value now passes `gsdml
+validate` and `gsdml check`.
+
+## Changes
+
+### Fixed
+
+- **`gsdml generate`**: a parameter record without a default value is
+  written with a `Const` of zeros.
+  - Before, it had no `Const`, which the schemas require from V2.31.
+    `gsdml validate` and `gsdml check` reported it as a schema error,
+    the known issue of v0.15.0.
+  - The cause was go-profinet's `gsdml.FromModel`, fixed in v0.14.1.
+  - The record's value is unchanged: a missing default means zeros.
+- **`gsdml generate`**: a model with a parameter record of no octets now
+  fails for V2.31 and later, because those schemas have no valid form for
+  it. The error code is `invalid_model` and the exit code 3.
+
+---
+
 ## v0.15.0
 
 **Date:** 2026-11-22
