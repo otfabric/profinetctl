@@ -218,19 +218,21 @@ func inspect(ctx context.Context, path string, doc *gsdml.Document) (inspectResu
 
 // validateResult is the outcome of a validation.
 type validateResult struct {
-	File   string        `json:"file"`
-	Valid  bool          `json:"valid"`
-	Issues []gsdml.Issue `json:"issues"`
+	File          string        `json:"file"`
+	SchemaVersion string        `json:"schema_version,omitempty"`
+	Valid         bool          `json:"valid"`
+	Issues        []gsdml.Issue `json:"issues"`
 	// Scope says what the validation covers, and what it does not.
 	Scope string `json:"scope"`
 }
 
-const validationScope = "structure, attribute types and references of go-profinet's GSDML catalog (schema versions 2.25 to 2.45), and whether each submodule's IO data fits an RT frame; not PI's GSDML checker"
+// validationScope follows structureScope: what validate checks besides.
+const validationScope = ", and whether each submodule's IO data fits an RT frame; not PI's GSDML checker"
 
 func (r validateResult) MarshalTextOutput() (string, error) {
 	var b strings.Builder
 	for _, i := range r.Issues {
-		fmt.Fprintf(&b, "%s\n", i)
+		fmt.Fprintf(&b, "%s\n", issueText(i))
 	}
 	if r.Valid {
 		fmt.Fprintf(&b, "%s: valid\n", r.File)
@@ -241,12 +243,12 @@ func (r validateResult) MarshalTextOutput() (string, error) {
 	return b.String(), nil
 }
 
-func (r validateResult) TableHeaders() []string { return []string{"PATH", "ISSUE"} }
+func (r validateResult) TableHeaders() []string { return []string{"LINE", "PATH", "ISSUE"} }
 
 func (r validateResult) TableRows() [][]string {
 	var rows [][]string
 	for _, i := range r.Issues {
-		rows = append(rows, []string{i.Path, i.Message})
+		rows = append(rows, []string{issueLine(i.Line), i.Path, i.Message})
 	}
 	return rows
 }
@@ -390,33 +392,40 @@ func newGSDMLCmd(a *app) *cobra.Command {
 			})
 		},
 	}
+	var against string
 	validateCmd := &cobra.Command{
 		Use:   "validate FILE",
-		Short: "Validate a GSDML file; exit code 7 when it has issues",
-		Long: `Check a GSDML file against go-profinet's catalog of the GSDML schema: the required
-elements and attributes, their lexical types, and the references between
-elements; and that the input and the output data of every submodule fit an RT
-frame. The official schemas of PROFIBUS & PROFINET International are licensed
-to its members and are not part of profinetctl: this is not PI's GSDML checker.`,
-		Args: cobra.ExactArgs(1),
+		Short: "Validate a GSDML file; exit code 7 when it has errors",
+		Long: `Validate a GSDML file: its structure against the GSDML schema of the version it
+names (go-profinet's validator, generated from PI's reference schemas and
+checked against xmllint: the elements and attributes, their order and number,
+lexical types and facets, and the identity constraints, each issue with its
+line), and go-profinet's semantic rules that are errors (the input and the
+output data of every submodule fit an RT frame). A file naming no version
+go-profinet has a schema for, or --against catalog, is validated against
+go-profinet's version-independent catalog instead. The schemas are not part of
+profinetctl, and this is not PI's GSDML checker.`,
+		Args:    cobra.ExactArgs(1),
+		PreRunE: func(*cobra.Command, []string) error { return checkAgainst(against) },
 		RunE: func(c *cobra.Command, args []string) error {
 			return a.result(c, func(ctx context.Context) (any, error) {
-				doc, err := readGSDML(args[0])
+				rep, _, err := checkFile(args[0], against)
 				if err != nil {
 					return nil, err
 				}
-				r := validateResult{File: args[0], Valid: true, Issues: []gsdml.Issue{}, Scope: validationScope}
-				if err := gsdml.Validate(doc); err != nil {
-					var ve *gsdml.ValidationError
-					if !errors.As(err, &ve) {
-						return nil, errs.InvalidInput(errs.CodeInvalidGSDML, err.Error(), err)
+				r := validateResult{File: args[0], SchemaVersion: rep.SchemaVersion, Valid: true, Issues: []gsdml.Issue{},
+					Scope: structureScope(against, rep.SchemaVersion) + validationScope}
+				for _, i := range rep.Issues {
+					if i.Severity == gsdml.SeverityError {
+						r.Issues = append(r.Issues, i)
 					}
-					r.Valid, r.Issues = false, ve.Issues
 				}
+				r.Valid = len(r.Issues) == 0
 				return r, interrupted(ctx)
 			})
 		},
 	}
+	validateCmd.Flags().StringVar(&against, "against", againstSchema, "Validate the structure against the schema of the file's version (schema) or go-profinet's catalog (catalog)")
 	var dap string
 	modulesCmd := &cobra.Command{
 		Use:   "modules FILE",
@@ -537,6 +546,6 @@ file goes to stdout; with a directory it gets its conventional name
 	generateCmd.Flags().StringVarP(&out, "output-file", "O", "", "Write to this file, or under the conventional name to this directory")
 	generateCmd.Flags().StringVar(&version, "pnio-version", "", "Declared PNIO_Version (default V2.35)")
 	generateCmd.Flags().BoolVar(&supervisor, "device-access", true, "Declare DeviceAccessSupported (supervisor AR)")
-	g.AddCommand(inspectCmd, validateCmd, newGSDMLCheckCmd(a), newGSDXCmd(a), modulesCmd, submodulesCmd, generateCmd)
+	g.AddCommand(inspectCmd, validateCmd, newGSDMLCheckCmd(a), newGSDMLSchemaCmd(a), newGSDXCmd(a), modulesCmd, submodulesCmd, generateCmd)
 	return g
 }
