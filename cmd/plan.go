@@ -15,6 +15,7 @@ import (
 	"github.com/otfabric/go-profinet/model"
 	"github.com/otfabric/go-profinet/pnio"
 	"github.com/otfabric/profinetctl/internal/errs"
+	"github.com/otfabric/profinetctl/internal/format"
 	"github.com/spf13/cobra"
 	"github.com/spf13/pflag"
 )
@@ -151,6 +152,11 @@ func addPlan(cfg *controller.DeviceConfig, plan gsdml.ParameterPlan) error {
 	return nil
 }
 
+// planIssueText is an issue of a plan in text: its severity, line and path.
+func planIssueText(i gsdml.Issue) string {
+	return i.Severity.String() + ": " + issueText(i)
+}
+
 // planWriteView is a record write of a plan.
 type planWriteView struct {
 	Slot             uint16 `json:"slot"`
@@ -211,7 +217,7 @@ func (r planResult) MarshalTextOutput() (string, error) {
 			w.Slot, w.Subslot, w.Index, name, w.TransferSequence, w.Length, w.Values, w.Data)
 	}
 	for _, i := range r.Issues {
-		fmt.Fprintf(&b, "%s\n", issueText(i))
+		fmt.Fprintf(&b, "%s\n", planIssueText(i))
 	}
 	if r.Planned {
 		fmt.Fprintf(&b, "%d record write(s); %d warning(s), %d unvalidated\n", len(r.Writes), r.Warnings, r.Unvalidated)
@@ -241,13 +247,14 @@ func (r planResult) Partial() bool { return !r.Planned }
 func newGSDMLPlanCmd(a *app) *cobra.Command {
 	var dap string
 	var plugs, values []string
+	var slots []uint
 	var defaults bool
 	c := &cobra.Command{
 		Use:   "plan FILE [--plug SLOT=IDENT]... [--param-value SLOT:SUBSLOT:INDEX:FIELD=VALUE]... [--param-defaults]",
 		Short: "Show the parameter records an AR would write, from the GSDML file and chosen values; sends nothing",
 		Long: `Build the parameter plan of a device configuration with go-profinet's
 PlanParameters, and show it without sending anything: the parameter records an
-AR with the same --gsdml, --dap, --plug, --param-value and --param-defaults
+AR with the same --gsdml, --dap, --plug, --slot, --param-value and --param-defaults
 writes before PrmEnd, in the order it writes them, and the issues of the
 records.
 
@@ -262,7 +269,10 @@ order; submodules in slot and subslot order.
 When go-profinet refuses the plan for errors of the records (a value outside
 the field's AllowedValues or ValueItem, a record that does not build, a
 TransferSequence that is not 1 to N), the errors are listed and the exit code
-is 7. Values or a configuration that do not match the file exit 3.`,
+is 7. Values or a configuration that do not match the file exit 3. With
+--format table the table has the writes, and the issues go to stderr. The
+records of an AR's --param are not part of the plan: the AR writes them
+after the planned ones, as given.`,
 		Args: cobra.ExactArgs(1),
 		RunE: func(c *cobra.Command, args []string) error {
 			return a.result(c, func(ctx context.Context) (any, error) {
@@ -271,6 +281,9 @@ is 7. Values or a configuration that do not match the file exit 3.`,
 					return nil, err
 				}
 				if err := plug(m, plugs, slotRulesOf(doc, dap)); err != nil {
+					return nil, err
+				}
+				if m, err = withSlots(m, slots); err != nil {
 					return nil, err
 				}
 				if err := m.Validate(); err != nil {
@@ -284,18 +297,25 @@ is 7. Values or a configuration that do not match the file exit 3.`,
 					if _, typed := errs.As(err); typed {
 						return nil, err
 					}
-					if errors.Is(err, profinet.ErrInvalidConfig) && hasErrorIssue(plan) {
-						return newPlanResult(args[0], dap, plan, false), nil
+					if !errors.Is(err, profinet.ErrInvalidConfig) || !hasErrorIssue(plan) {
+						return nil, planError(err)
 					}
-					return nil, planError(err)
 				}
-				return newPlanResult(args[0], dap, plan, true), nil
+				r := newPlanResult(args[0], dap, plan, err == nil)
+				// A table has the writes only: the issues go to stderr.
+				if f, _ := format.Parse(a.format); f == format.FormatTable {
+					for _, i := range r.Issues {
+						_, _ = fmt.Fprintf(a.stderr, "%s\n", format.SafeText(planIssueText(i)))
+					}
+				}
+				return r, nil
 			})
 		},
 	}
 	f := c.Flags()
 	f.StringVar(&dap, "dap", "", "Device access point ID (default: the first)")
 	f.StringArrayVar(&plugs, "plug", nil, "Plug the module with this ident number from the GSDML catalog: SLOT=IDENT (repeatable), in a slot the GSDML file allows it in")
+	f.UintSliceVar(&slots, "slot", nil, "Only these slots besides the DAP, as the AR commands' --slot (shared device); repeatable or comma-separated")
 	addPlanFlags(f, &values, &defaults)
 	return c
 }

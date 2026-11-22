@@ -104,6 +104,8 @@ type parsedAR struct {
 	// planWarnings are the issues of the parameter plan that do not stop
 	// it: written to stderr before the AR is established.
 	planWarnings []gsdml.Issue
+	// planNotes are warnings about how the plan and the other flags mix.
+	planNotes []string
 }
 
 type outputValue struct {
@@ -170,18 +172,8 @@ func (o *arOptions) parse() (*parsedAR, error) {
 	if err := plug(m, o.plugs, rules); err != nil {
 		return nil, err
 	}
-	if len(o.slots) > 0 {
-		var slots []uint16
-		for _, s := range o.slots {
-			if s == 0 || s > 0x7FFF {
-				return nil, errs.InvalidInput(errs.CodeInvalidInput, fmt.Sprintf("--slot %d: want a module slot from 1", s), nil)
-			}
-			if _, ok := m.Module(uint16(s)); !ok {
-				return nil, errs.InvalidInput(errs.CodeInvalidInput, fmt.Sprintf("--slot %d: the configuration has no module there", s), nil)
-			}
-			slots = append(slots, uint16(s))
-		}
-		m = m.WithSlots(slots...)
+	if m, err = withSlots(m, o.slots); err != nil {
+		return nil, err
 	}
 	if err := m.Validate(); err != nil {
 		return nil, errs.InvalidInput(errs.CodeInvalidModel, err.Error(), err)
@@ -257,6 +249,9 @@ func (o *arOptions) parse() (*parsedAR, error) {
 			return nil, err
 		}
 		p.planWarnings = planWarnings(plan)
+		if len(o.params) > 0 {
+			p.planNotes = append(p.planNotes, "--param records are written after the parameter plan's, as given: they are not checked against the GSDML file or ordered by its TransferSequence")
+		}
 	}
 	for _, par := range o.reparams {
 		f, err := splitAddr(par, 4)
@@ -273,6 +268,25 @@ func (o *arOptions) parse() (*parsedAR, error) {
 		p.reparams = append(p.reparams, controller.Parameter{Slot: slot, Subslot: sub, Index: pnio.Index(idx), Data: data})
 	}
 	return p, nil
+}
+
+// withSlots is m with only the DAP and the modules of --slot (a shared
+// device: another controller owns the rest); m itself without --slot.
+func withSlots(m *model.Device, slots []uint) (*model.Device, error) {
+	if len(slots) == 0 {
+		return m, nil
+	}
+	var keep []uint16
+	for _, s := range slots {
+		if s == 0 || s > 0x7FFF {
+			return nil, errs.InvalidInput(errs.CodeInvalidInput, fmt.Sprintf("--slot %d: want a module slot from 1", s), nil)
+		}
+		if _, ok := m.Module(uint16(s)); !ok {
+			return nil, errs.InvalidInput(errs.CodeInvalidInput, fmt.Sprintf("--slot %d: the configuration has no module there", s), nil)
+		}
+		keep = append(keep, uint16(s))
+	}
+	return m.WithSlots(keep...), nil
 }
 
 // slotRules are the slots a device access point of a GSDML file allows
@@ -506,7 +520,10 @@ func stamp() string { return time.Now().Format("15:04:05.000") }
 // establish starts the controller, adds the device and waits for Running.
 func (a *app) establish(ctx context.Context, o *arOptions, p *parsedAR) (*arSession, error) {
 	for _, i := range p.planWarnings {
-		_, _ = fmt.Fprintf(a.stderr, "warning: parameter plan: %s\n", format.SafeText(issueText(i)))
+		_, _ = fmt.Fprintf(a.stderr, "warning: parameter plan: %s\n", format.SafeText(planIssueText(i)))
+	}
+	for _, n := range p.planNotes {
+		_, _ = fmt.Fprintf(a.stderr, "warning: %s\n", format.SafeText(n))
 	}
 	s, err := a.open()
 	if err != nil {
