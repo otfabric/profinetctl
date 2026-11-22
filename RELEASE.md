@@ -23,6 +23,36 @@ ending with a `---` line and no `---` line inside a section
 
 ---
 
+## v0.18.0
+
+**Date:** 2026-11-23
+**Previous release:** v0.17.1
+
+## Summary
+
+Built on go-profinet v0.18.0: `gsdml validate` and `gsdml check` report
+the parameter records of the file as go-profinet's record rules check
+them.
+
+## Changes
+
+### Changed
+
+- Built on go-profinet v0.18.0 (from v0.17.0).
+- **`gsdml validate`** reports the errors of the parameter records:
+  a record go-profinet cannot convert (`parameter-record`), Consts that
+  share octets, a ValueItemTarget that names no ValueItem, TransferSequence
+  values that are not 1 to N. A file with them is no longer valid (exit
+  code 7), where before it was valid and failed only with `--gsdml`.
+- **`gsdml check`** reports the record rules too (errors, warnings and
+  unvalidated issues, e.g. `parameter-encoding` for a field without a
+  verified encoding). A record go-profinet cannot convert is now a
+  `parameter-record` error, and the device access points are then not
+  converted (rule `model`), as with any other error.
+- `scope` of both names the record rules (docs/json-output.md).
+
+---
+
 ## v0.17.1
 
 **Date:** 2026-11-22

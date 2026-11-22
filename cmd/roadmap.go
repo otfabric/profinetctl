@@ -88,7 +88,7 @@ type checkResult struct {
 	strict        bool
 }
 
-const checkScope = ", go-profinet's semantic rules (IO data length, slots, record indexes, ident numbers, subslots, reduction ratios) and the conversion of the first 64 device access points to a model; not PI's GSDML checker"
+const checkScope = ", go-profinet's semantic rules (IO data length, slots, record indexes, ident numbers, subslots, reduction ratios, parameter records and their TransferSequence) and the conversion of the first 64 device access points to a model; not PI's GSDML checker"
 
 // ruleModel is the rule of a device access point that does not convert to
 // a model (gsdml.ToModel), so that --gsdml with its ID fails.
@@ -188,8 +188,11 @@ the file's version, as validate does (or go-profinet's catalog with --against
 catalog, or for a file naming no version go-profinet has a schema for, which is
 then unvalidated, rule schema), the semantic rules (IO data that does not fit an RT frame is an
 error; slots, record indexes, module ident numbers, port subslots and reduction
-ratios are warnings, each with its basis), and what was not validated (elements
-outside the catalog, newer schema versions). Without catalog errors, each of the
+ratios are warnings, each with its basis; the parameter records as go-profinet
+checks them: layout, overlaps, defaults, AllowedValues and ValueItems,
+TransferSequence, and a record it cannot convert, rule parameter-record), and
+what was not validated (elements outside the catalog, newer schema versions).
+Without errors, each of the
 first 64 device access points is converted to a model as --gsdml does: one that
 fails is an error (rule model), or unvalidated when go-profinet does not support
 what the file has (an encoding it does not know); those after the first 64 are

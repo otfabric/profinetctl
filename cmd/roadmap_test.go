@@ -206,8 +206,10 @@ func TestGSDMLCheckModel(t *testing.T) {
 	unsupported := withRef(`<Ref ByteOffset="0" DataType="Integer16_S" DefaultValue="1" TextId="M2_SM1_R16"/>`)
 	var r checkJSON
 	n.json(&r, "gsdml", "check", unsupported)
-	if r.Errors != 0 || r.Unvalidated != 1 || len(r.Issues) != 1 || r.Issues[0].Rule != "model" ||
-		r.Issues[0].Severity != "unvalidated" || r.Issues[0].Path != dapPath || !strings.Contains(r.Issues[0].Message, "Integer16_S") {
+	// The field without a verified encoding (go-profinet's record rules),
+	// and the DAP that does not convert because of it.
+	if r.Errors != 0 || r.Unvalidated != 2 || len(r.Issues) != 2 || r.Issues[0].Rule != "parameter-encoding" || r.Issues[1].Rule != "model" ||
+		r.Issues[1].Severity != "unvalidated" || r.Issues[1].Path != dapPath || !strings.Contains(r.Issues[1].Message, "Integer16_S") {
 		t.Fatalf("unsupported %+v", r)
 	}
 	if _, _, code := n.run("gsdml", "check", unsupported, "--strict"); code != 7 {
@@ -221,7 +223,9 @@ func TestGSDMLCheckModel(t *testing.T) {
 		t.Fatalf("exit %d:\n%s", code, out)
 	}
 	decode(t, out, &r)
-	if r.Errors != 1 || r.Issues[0].Rule != "model" || r.Issues[0].Severity != "error" {
+	// go-profinet's record rules report the record: an error, so the
+	// conversion is not tried.
+	if r.Errors != 1 || r.Issues[0].Rule != "parameter-record" || r.Issues[0].Severity != "error" || !strings.Contains(r.Issues[0].Message, "exceeds its Length") {
 		t.Fatalf("too long %+v", r)
 	}
 	n.fails(3, "invalid_gsdml", "gsdml", "modules", tooLong, "--dap", "DAP")

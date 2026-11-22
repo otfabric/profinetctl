@@ -254,7 +254,7 @@ func validationErrors(rep gsdml.Report) []gsdml.Issue {
 }
 
 // validationScope follows structureScope: what validate checks besides.
-const validationScope = ", and whether each submodule's IO data fits an RT frame; not PI's GSDML checker"
+const validationScope = ", whether each submodule's IO data fits an RT frame, and the errors of the parameter records (go-profinet's record rules: layout, overlaps, defaults, AllowedValues and ValueItems, TransferSequence); not PI's GSDML checker"
 
 func (r validateResult) MarshalTextOutput() (string, error) {
 	var b strings.Builder
@@ -435,7 +435,9 @@ names (go-profinet's validator, generated from PI's reference schemas and
 checked against xmllint: the elements and attributes, their order and number,
 lexical types and facets, and the identity constraints, each issue with its
 line), and go-profinet's semantic rules that are errors (the input and the
-output data of every submodule fit an RT frame). A file naming no version
+output data of every submodule fit an RT frame; the parameter records can be
+built: their defaults encode, no Consts share octets, every ValueItemTarget
+resolves, and the TransferSequence of a submodule's records is 1 to N). A file naming no version
 go-profinet has a schema for, or --against catalog, is validated against
 go-profinet's version-independent catalog instead. The schemas are not part of
 profinetctl, and this is not PI's GSDML checker.`,
