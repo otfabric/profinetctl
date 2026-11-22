@@ -154,7 +154,7 @@ Every command has `--help`. A device is selected by `--station NAME` (resolved w
 
 ## Connecting as IO-Controller
 
-`connect`, `ar`, `iocr`, `io` and `alarms` act as IO-Controller (conformance class A, RT_CLASS_1, or RT_CLASS_2 with `--advanced`). They need the expected configuration of the device: its GSDML file (`--gsdml FILE`, with `--dap ID` when it has several device access points), or a go-profinet model in JSON (`--model`). The modules a GSDML file fixes or uses in slots are expected; `--plug SLOT=IDENT` plugs others from its catalog (`gsdml modules` lists them).
+`connect`, `ar`, `iocr`, `io` and `alarms` act as IO-Controller (conformance class A, RT_CLASS_1, or RT_CLASS_2 with `--advanced`). They need the expected configuration of the device: its GSDML file (`--gsdml FILE`, with `--dap ID` when it has several device access points), or a go-profinet model in JSON (`--model`). The modules a GSDML file fixes or uses in slots are expected; `--plug SLOT=IDENT` plugs others from its catalog (`gsdml modules` lists them), in a slot the file allows them in (the device access point's `PhysicalSlots` and the module's `AllowedInSlots`); `--plug-any-slot` lifts that, to test how a device answers a module in the wrong slot.
 
 ```console
 $ sudo profinetctl -i eth0 connect -s io-rack-1 --gsdml device.xml --plug 3=0x30 \

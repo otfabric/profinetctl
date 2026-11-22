@@ -88,7 +88,7 @@ type checkResult struct {
 	strict        bool
 }
 
-const checkScope = ", go-profinet's semantic rules (IO data length, slots, record indexes, ident numbers, subslots, reduction ratios) and the conversion of each device access point to a model; not PI's GSDML checker"
+const checkScope = ", go-profinet's semantic rules (IO data length, slots, record indexes, ident numbers, subslots, reduction ratios) and the conversion of the first 64 device access points to a model; not PI's GSDML checker"
 
 // ruleModel is the rule of a device access point that does not convert to
 // a model (gsdml.ToModel), so that --gsdml with its ID fails.
@@ -104,7 +104,8 @@ func pathID(id string) string {
 }
 
 // modelIssues converts each of the first inspectDAPs device access points
-// to a model and returns an issue for each that fails: an error, or
+// to a model, with one unvalidated issue for those after them, and returns
+// an issue for each that fails: an error, or
 // unvalidated when go-profinet does not support what the file has (such
 // as a Ref DefaultValue of a DataType whose encoding it does not know),
 // which is no fault of the file. The catalog's errors are reported
@@ -116,10 +117,18 @@ func modelIssues(ctx context.Context, doc *gsdml.Document) ([]gsdml.Issue, error
 		return nil, nil
 	}
 	var out []gsdml.Issue
-	for i, d := range pb.ApplicationProcess.DeviceAccessPointList.DeviceAccessPointItems {
-		if i >= inspectDAPs {
-			break
-		}
+	daps := pb.ApplicationProcess.DeviceAccessPointList.DeviceAccessPointItems
+	if len(daps) > inspectDAPs {
+		out = append(out, gsdml.Issue{
+			Path: "ISO15745Profile/ProfileBody/ApplicationProcess/DeviceAccessPointList",
+			Message: fmt.Sprintf("%d of %d device access points not converted to a model: check converts the first %d",
+				len(daps)-inspectDAPs, len(daps), inspectDAPs),
+			Severity: gsdml.SeverityUnvalidated,
+			Rule:     ruleModel,
+		})
+		daps = daps[:inspectDAPs]
+	}
+	for _, d := range daps {
 		if err := interrupted(ctx); err != nil {
 			return nil, err
 		}
@@ -180,10 +189,11 @@ catalog, or for a file naming no version go-profinet has a schema for, which is
 then unvalidated, rule schema), the semantic rules (IO data that does not fit an RT frame is an
 error; slots, record indexes, module ident numbers, port subslots and reduction
 ratios are warnings, each with its basis), and what was not validated (elements
-outside the catalog, newer schema versions). Without catalog errors, each device
-access point is converted to a model as --gsdml does: one that fails is an error
-(rule model), or unvalidated when go-profinet does not support what the file has
-(an encoding it does not know). Exit code 7 when there are errors,
+outside the catalog, newer schema versions). Without catalog errors, each of the
+first 64 device access points is converted to a model as --gsdml does: one that
+fails is an error (rule model), or unvalidated when go-profinet does not support
+what the file has (an encoding it does not know); those after the first 64 are
+one unvalidated issue (rule model). Exit code 7 when there are errors,
 or with --strict any issue. This is not PI's GSDML checker.`,
 		Args:    cobra.ExactArgs(1),
 		PreRunE: func(*cobra.Command, []string) error { return checkAgainst(against) },

@@ -297,6 +297,7 @@ Schema:   GSDML 2.35
 Vendor:   OT Fabric (0xF000)
 Device:   0x0101, family I/O Interop
 Valid:    yes
+Checked:  the GSDML schema of version 2.35 (go-profinet's model generated from PI's reference schemas, checked against xmllint), and whether each submodule's IO data fits an RT frame; not PI's GSDML checker
 Device access points: 1
   DAP  "go-profinet interop DAP" ident 0x00000100 class B, 1 port(s), 3 plugged slot(s), 3 usable module(s)
 ```
@@ -324,7 +325,7 @@ $ profinetctl gsdml submodules otf-device.xml --module 0x20
 ```console
 $ profinetctl gsdml check otf-device.xml
 otf-device.xml: 0 error(s), 0 warning(s), 0 unvalidated
-checked: the GSDML schema of version 2.35 (go-profinet's model generated from PI's reference schemas, checked against xmllint), go-profinet's semantic rules (IO data length, slots, record indexes, ident numbers, subslots, reduction ratios) and the conversion of each device access point to a model; not PI's GSDML checker
+checked: the GSDML schema of version 2.35 (go-profinet's model generated from PI's reference schemas, checked against xmllint), go-profinet's semantic rules (IO data length, slots, record indexes, ident numbers, subslots, reduction ratios) and the conversion of the first 64 device access points to a model; not PI's GSDML checker
 ```
 
 ```console
@@ -335,7 +336,7 @@ wrote pnet-generated.xml (8435 octets)
 ```console
 $ profinetctl gsdml check pnet-generated.xml
 pnet-generated.xml: 0 error(s), 0 warning(s), 0 unvalidated
-checked: the GSDML schema of version 2.35 (go-profinet's model generated from PI's reference schemas, checked against xmllint), go-profinet's semantic rules (IO data length, slots, record indexes, ident numbers, subslots, reduction ratios) and the conversion of each device access point to a model; not PI's GSDML checker
+checked: the GSDML schema of version 2.35 (go-profinet's model generated from PI's reference schemas, checked against xmllint), go-profinet's semantic rules (IO data length, slots, record indexes, ident numbers, subslots, reduction ratios) and the conversion of the first 64 device access points to a model; not PI's GSDML checker
 ```
 
 ## Application relationships and cyclic data

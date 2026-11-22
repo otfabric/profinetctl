@@ -168,6 +168,22 @@ func TestValidateAgainst(t *testing.T) {
 	if !r.Valid || !strings.Contains(r.Scope, "catalog") {
 		t.Fatalf("against the catalog: %+v", r)
 	}
+	// inspect reports the validity validate reports: an element the schema
+	// of 2.35 does not have makes the file invalid, though the catalog
+	// accepts it.
+	var in inspectResult
+	n.json(&in, "gsdml", "inspect", bad)
+	if in.Valid || in.Issues != 1 || !strings.Contains(in.Scope, "schema of version 2.35") {
+		t.Fatalf("inspect bad: %+v", in)
+	}
+	if out := n.ok("gsdml", "inspect", bad); !strings.Contains(out, "Valid:    no, 1 issue(s)") || !strings.Contains(out, "Checked:  the GSDML schema of version 2.35") {
+		t.Fatalf("inspect bad:\n%s", out)
+	}
+	n.json(&in, "gsdml", "inspect", bad, "--against", "catalog")
+	if !in.Valid || in.Issues != 0 || !strings.Contains(in.Scope, "catalog") {
+		t.Fatalf("inspect bad against the catalog: %+v", in)
+	}
+	n.fails(2, "invalid_input", "gsdml", "inspect", bad, "--against", "xsd")
 	newer := variant(t, "newer.xml", schemaLoc, "GSDML-DeviceProfile-V2.99.xsd")
 	n.json(&r, "gsdml", "validate", newer)
 	if !r.Valid || !strings.Contains(r.Scope, "catalog") {
