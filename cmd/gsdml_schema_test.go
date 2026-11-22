@@ -5,12 +5,17 @@ package cmd
 import (
 	"bytes"
 	"context"
+	"encoding/json"
+	"errors"
+	"math"
 	"os"
 	"strconv"
 	"strings"
 	"testing"
 
 	"github.com/otfabric/go-profinet/gsdml/typed"
+
+	"github.com/otfabric/profinetctl/internal/errs"
 )
 
 // variant writes the GSDML file of the test model with old replaced by new.
@@ -228,5 +233,58 @@ func TestIssueLine(t *testing.T) {
 	t.Parallel()
 	if issueLine(0) != "" || issueLine(12) != "12" {
 		t.Fatal(issueLine(0), issueLine(12))
+	}
+}
+
+// A directory opens and does not read: input_file_open_failed.
+func TestReadGSDMLBytesDirectory(t *testing.T) {
+	t.Parallel()
+	n := newTestNet(t)
+	n.fails(3, "input_file_open_failed", "gsdml", "schema", "validate", t.TempDir())
+	n.fails(3, "input_file_open_failed", "gsdml", "validate", t.TempDir())
+}
+
+// With --version the file is not read for its version first: a file that
+// is not XML fails in the validation.
+func TestSchemaValidateVersionMalformed(t *testing.T) {
+	t.Parallel()
+	n := newTestNet(t)
+	n.fails(3, "invalid_gsdml", "gsdml", "schema", "validate", writeFile(t, "broken.xml", []byte("<ISO15745Profile>")), "--version", "2.35")
+}
+
+// xsd:float admits INF and NaN, which JSON does not.
+func TestDocumentJSONUnrepresentable(t *testing.T) {
+	t.Parallel()
+	_, err := documentJSON("f.xml", struct{ PowerConsumption float64 }{math.Inf(1)})
+	var e *errs.Error
+	if !errors.As(err, &e) || e.Code != errs.CodeUnsupportedGSDML || !strings.Contains(e.Message, "f.xml") {
+		t.Fatalf("%v", err)
+	}
+	raw, err := documentJSON("f.xml", struct {
+		A *int
+		B []any
+	}{B: []any{nil, 1.5}})
+	if err != nil || string(raw) != `{"B":[null,1.5]}` {
+		t.Fatalf("%s %v", raw, err)
+	}
+	if _, err := (dumpResult{Document: json.RawMessage("{")}).MarshalTextOutput(); err == nil {
+		t.Fatal("invalid document marshalled")
+	}
+}
+
+func TestValidateAgainstCatalogMalformed(t *testing.T) {
+	t.Parallel()
+	n := newTestNet(t)
+	n.fails(3, "invalid_gsdml", "gsdml", "validate", "--against", "catalog", writeFile(t, "broken.xml", []byte("<ISO15745Profile>")))
+}
+
+// PowerConsumption is an xsd:float: INF is valid GSDML, and the dump says
+// that JSON cannot hold it.
+func TestSchemaDumpInfinity(t *testing.T) {
+	t.Parallel()
+	n := newTestNet(t)
+	f := variant(t, "inf.xml", "</VirtualSubmoduleItem>", `<PROFIenergy ProfileVersion="V1.0"><EnergySavingModeList><EnergySavingModeItem ID="1" TimeToPause="1" RTTO="1" TimeMinLengthOfStay="1" PowerConsumption="INF"/></EnergySavingModeList></PROFIenergy></VirtualSubmoduleItem>`)
+	if msg := n.fails(3, "unsupported_gsdml", "gsdml", "schema", "dump", f, "--no-validate"); !strings.Contains(msg, "INF or NaN") {
+		t.Fatalf("%s", msg)
 	}
 }

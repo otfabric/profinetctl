@@ -61,8 +61,18 @@ to the model.
   for a file naming no version go-profinet has.
 - `gsdml schema dump FILE [--version V] [--no-validate]`: the typed model
   of a file as JSON, in the schema's names and order, with JSON numbers
-  and booleans for numeric and boolean types.
+  and booleans for numeric and boolean types; a float value JSON cannot
+  represent (INF, -INF, NaN) is `unsupported_gsdml`.
 
+
+### Known issue
+
+- A file `gsdml generate` writes for a model with a parameter record
+  without a default value (go-profinet v0.14.0 `gsdml.FromModel`) has no
+  `Const` element in that `ParameterRecordDataItem`, which the schemas
+  require from V2.31 (the file names V2.35): `gsdml validate` and `gsdml check` now report it as an
+  error (rule `schema`), as xmllint would. The fix belongs in
+  go-profinet; `--against catalog` reports no error.
 ---
 
 ## v0.14.0

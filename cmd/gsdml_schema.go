@@ -77,17 +77,19 @@ func checkFile(path, against string) (gsdml.Report, *gsdml.Document, error) {
 	if err != nil {
 		return gsdml.Report{}, nil, err
 	}
-	doc, err := gsdml.ParseBytes(data)
-	if err != nil {
-		return gsdml.Report{}, nil, gsdmlError(fmt.Sprintf("%s: %v", path, err), err)
-	}
 	if against == againstCatalog {
+		doc, err := gsdml.ParseBytes(data)
+		if err != nil {
+			return gsdml.Report{}, nil, gsdmlError(fmt.Sprintf("%s: %v", path, err), err)
+		}
 		return gsdml.Check(doc), doc, nil
 	}
 	rep, err := gsdml.CheckBytes(data)
 	if err != nil {
 		return gsdml.Report{}, nil, gsdmlError(fmt.Sprintf("%s: %v", path, err), err)
 	}
+	// CheckBytes read these octets with ParseBytes: they parse again.
+	doc, _ := gsdml.ParseBytes(data)
 	return rep, doc, nil
 }
 
@@ -256,32 +258,37 @@ func pruneNulls(raw []byte) ([]byte, error) {
 	d := json.NewDecoder(bytes.NewReader(raw))
 	d.UseNumber()
 	var out bytes.Buffer
-	if err := pruneValue(d, &out); err != nil {
+	if _, err := pruneValue(d, &out); err != nil {
 		return nil, err
 	}
 	return out.Bytes(), nil
 }
 
-// pruneValue copies the next value of d to out without null members.
-func pruneValue(d *json.Decoder, out *bytes.Buffer) error {
+// pruneValue copies the next value of d to out without null members, and
+// reports whether the value is null (then nothing is written).
+func pruneValue(d *json.Decoder, out *bytes.Buffer) (null bool, err error) {
 	t, err := d.Token()
 	if err != nil {
-		return err
+		return false, err
 	}
 	switch t {
+	case nil:
+		return true, nil
 	case json.Delim('{'):
 		out.WriteByte('{')
 		first := true
+		var member bytes.Buffer
 		for d.More() {
 			k, err := d.Token()
 			if err != nil {
-				return err
+				return false, err
 			}
-			var v json.RawMessage
-			if err := d.Decode(&v); err != nil {
-				return err
+			member.Reset()
+			null, err := pruneValue(d, &member)
+			if err != nil {
+				return false, err
 			}
-			if string(v) == "null" {
+			if null {
 				continue
 			}
 			if !first {
@@ -291,30 +298,46 @@ func pruneValue(d *json.Decoder, out *bytes.Buffer) error {
 			kb, _ := json.Marshal(k)
 			out.Write(kb)
 			out.WriteByte(':')
-			if err := pruneValue(json.NewDecoder(bytes.NewReader(v)), out); err != nil {
-				return err
-			}
+			out.Write(member.Bytes())
 		}
 		_, err = d.Token()
 		out.WriteByte('}')
-		return err
+		return false, err
 	case json.Delim('['):
 		out.WriteByte('[')
 		for i := 0; d.More(); i++ {
 			if i > 0 {
 				out.WriteByte(',')
 			}
-			if err := pruneValue(d, out); err != nil {
-				return err
+			null, err := pruneValue(d, out)
+			if err != nil {
+				return false, err
+			}
+			if null {
+				out.WriteString("null")
 			}
 		}
 		_, err = d.Token()
 		out.WriteByte(']')
-		return err
+		return false, err
 	}
-	b, err := json.Marshal(t)
+	b, _ := json.Marshal(t) // a string, json.Number or bool from the decoder
 	out.Write(b)
-	return err
+	return false, nil
+}
+
+// documentJSON is the JSON of a typed document without its absent
+// members. A float value JSON cannot represent (INF, -INF or NaN, valid
+// in xsd:float) is unsupported_gsdml.
+func documentJSON(path string, root any) (json.RawMessage, error) {
+	raw, err := json.Marshal(root)
+	if err == nil {
+		raw, err = pruneNulls(raw)
+	}
+	if err != nil {
+		return nil, errs.InvalidInput(errs.CodeUnsupportedGSDML, fmt.Sprintf("%s: the typed model has a value JSON cannot represent (a floating-point INF or NaN): %v", path, err), err)
+	}
+	return raw, nil
 }
 
 func schemaDump(ctx context.Context, path, version string, validate bool) (dumpResult, error) {
@@ -338,12 +361,9 @@ func schemaDump(ctx context.Context, path, version string, validate bool) (dumpR
 	if err := interrupted(ctx); err != nil {
 		return dumpResult{}, err
 	}
-	raw, err := json.Marshal(d.RootElement())
+	raw, err := documentJSON(path, d.RootElement())
 	if err != nil {
-		return dumpResult{}, errs.Internal(err)
-	}
-	if raw, err = pruneNulls(raw); err != nil {
-		return dumpResult{}, errs.Internal(err)
+		return dumpResult{}, err
 	}
 	return dumpResult{File: path, SchemaVersion: v, Validated: validate, Document: raw}, nil
 }

@@ -22,7 +22,7 @@
 | `kind` | `code` values |
 |--------|---------------|
 | `usage` | `invalid_input`, `invalid_flag_combination`, `confirmation_required` |
-| `invalid_input` | `invalid_input`, `invalid_format`, `invalid_flag_combination`, `invalid_gsdml`, `unsupported_gsdml` (a document type declaration with an internal subset, a file naming no schema version go-profinet has, for `gsdml schema validate` and `gsdml schema dump` without `--version`, a Ref DefaultValue of a DataType whose encoding go-profinet does not know: the file may be valid), `invalid_model`, `input_file_open_failed`, `output_file_create_failed`, `interface_open_failed` (no such interface) |
+| `invalid_input` | `invalid_input`, `invalid_format`, `invalid_flag_combination`, `invalid_gsdml`, `unsupported_gsdml` (a document type declaration with an internal subset, a file naming no schema version go-profinet has, for `gsdml schema validate` and `gsdml schema dump` without `--version`, a float value JSON cannot represent (INF, -INF or NaN) for `gsdml schema dump`, a Ref DefaultValue of a DataType whose encoding go-profinet does not know: the file may be valid), `invalid_model`, `input_file_open_failed`, `output_file_create_failed`, `interface_open_failed` (no such interface) |
 | `transport` | `interface_open_failed`, `socket_failed` |
 | `timeout` | `request_timeout`, `connect_failed` |
 | `refused` | `pnio_error` (the message names the status: ErrorCode, ErrorDecode, ErrorCode1, ErrorCode2), `dcp_block_error`, `connect_failed`, `duplicate_station_name`, `invalid_input` (no IP address) |
