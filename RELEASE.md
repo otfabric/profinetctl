@@ -23,6 +23,58 @@ ending with a `---` line and no `---` line inside a section
 
 ---
 
+## v0.15.0
+
+**Date:** 2026-11-22
+**Previous release:** v0.14.0
+
+Built on go-profinet v0.14.0 (was v0.12.0), which has a generated model of
+every GSDML schema version, 1.0 to 2.46, with a validator checked against
+xmllint. `gsdml validate` and `gsdml check` now validate a file against the
+schema of its own version, and the new `gsdml schema` commands give access
+to the model.
+
+### Breaking
+
+- `gsdml validate` and `gsdml check` validate the structure of a file
+  against the GSDML schema of the version it names (rule `schema`), not
+  go-profinet's version-independent catalog. A file the catalog accepted
+  can now have errors, and exit code 7: an element or attribute the
+  schema of its version does not allow (an element outside the catalog
+  was unvalidated, it is now an error when the schema refuses it), the
+  order and number of elements, facets, and identity constraints in their
+  scopes. `--against catalog` restores the previous behaviour, and a file
+  naming no version go-profinet has a schema for is still checked against
+  the catalog (`check` reports that as unvalidated, rule `schema`).
+  Consumers of the JSON: the `scope` text changes; `rule` values gain
+  `schema`.
+
+### Added
+
+- Issues of `gsdml validate` and `gsdml check` have the `line` of their
+  element (JSON `line`, a `line N:` prefix in text, a `LINE` column in
+  tables); `gsdml validate` has `schema_version`.
+- `gsdml schema versions`: the GSDML schema versions go-profinet has.
+- `gsdml schema validate FILE [--version V]`: validation against the
+  schema of the file's version (or `V`) only, each issue with its line
+  and path; exit code 7 when the file is not valid, `unsupported_gsdml`
+  for a file naming no version go-profinet has.
+- `gsdml schema dump FILE [--version V] [--no-validate]`: the typed model
+  of a file as JSON, in the schema's names and order, with JSON numbers
+  and booleans for numeric and boolean types; a float value JSON cannot
+  represent (INF, -INF, NaN) is `unsupported_gsdml`.
+
+
+### Known issue
+
+- A file `gsdml generate` writes for a model with a parameter record
+  without a default value (go-profinet v0.14.0 `gsdml.FromModel`) has no
+  `Const` element in that `ParameterRecordDataItem`, which the schemas
+  require from V2.31 (the file names V2.35): `gsdml validate` and `gsdml check` now report it as an
+  error (rule `schema`), as xmllint would. The fix belongs in
+  go-profinet; `--against catalog` reports no error.
+---
+
 ## v0.14.0
 
 **Date:** 2026-11-22

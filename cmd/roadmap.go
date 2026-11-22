@@ -88,7 +88,7 @@ type checkResult struct {
 	strict        bool
 }
 
-const checkScope = "go-profinet's GSDML catalog and semantic rules (IO data length, slots, record indexes, ident numbers, subslots, reduction ratios) and the conversion of each device access point to a model; not PI's GSDML checker"
+const checkScope = ", go-profinet's semantic rules (IO data length, slots, record indexes, ident numbers, subslots, reduction ratios) and the conversion of each device access point to a model; not PI's GSDML checker"
 
 // ruleModel is the rule of a device access point that does not convert to
 // a model (gsdml.ToModel), so that --gsdml with its ID fails.
@@ -146,19 +146,21 @@ func (r checkResult) MarshalTextOutput() (string, error) {
 		if rule == "" {
 			rule = gsdml.RuleStructure
 		}
-		fmt.Fprintf(&b, "%-11s %-14s %s\n", i.Severity, rule, i)
+		fmt.Fprintf(&b, "%-11s %-14s %s\n", i.Severity, rule, issueText(i))
 	}
 	fmt.Fprintf(&b, "%s: %d error(s), %d warning(s), %d unvalidated\n", r.File, r.Errors, r.Warnings, r.Unvalidated)
 	fmt.Fprintf(&b, "checked: %s\n", r.Scope)
 	return b.String(), nil
 }
 
-func (r checkResult) TableHeaders() []string { return []string{"SEVERITY", "RULE", "PATH", "ISSUE"} }
+func (r checkResult) TableHeaders() []string {
+	return []string{"SEVERITY", "RULE", "LINE", "PATH", "ISSUE"}
+}
 
 func (r checkResult) TableRows() [][]string {
 	var rows [][]string
 	for _, i := range r.Issues {
-		rows = append(rows, []string{i.Severity.String(), i.Rule, i.Path, i.Message})
+		rows = append(rows, []string{i.Severity.String(), i.Rule, issueLine(i.Line), i.Path, i.Message})
 	}
 	return rows
 }
@@ -168,11 +170,14 @@ func (r checkResult) Partial() bool { return r.Errors > 0 || (r.strict && len(r.
 
 func newGSDMLCheckCmd(a *app) *cobra.Command {
 	var strict bool
+	var against string
 	c := &cobra.Command{
 		Use:   "check FILE",
 		Short: "Check a GSDML file: errors, warnings and unvalidated content, each with its rule",
-		Long: `Run go-profinet's full GSDML check: the catalog (structure, types, references)
-as validate does, the semantic rules (IO data that does not fit an RT frame is an
+		Long: `Run go-profinet's full GSDML check: the structure against the GSDML schema of
+the file's version, as validate does (or go-profinet's catalog with --against
+catalog, or for a file naming no version go-profinet has a schema for, which is
+then unvalidated, rule schema), the semantic rules (IO data that does not fit an RT frame is an
 error; slots, record indexes, module ident numbers, port subslots and reduction
 ratios are warnings, each with its basis), and what was not validated (elements
 outside the catalog, newer schema versions). Without catalog errors, each device
@@ -180,14 +185,14 @@ access point is converted to a model as --gsdml does: one that fails is an error
 (rule model), or unvalidated when go-profinet does not support what the file has
 (an encoding it does not know). Exit code 7 when there are errors,
 or with --strict any issue. This is not PI's GSDML checker.`,
-		Args: cobra.ExactArgs(1),
+		Args:    cobra.ExactArgs(1),
+		PreRunE: func(*cobra.Command, []string) error { return checkAgainst(against) },
 		RunE: func(c *cobra.Command, args []string) error {
 			return a.result(c, func(ctx context.Context) (any, error) {
-				doc, err := readGSDML(args[0])
+				rep, doc, err := checkFile(args[0], against)
 				if err != nil {
 					return nil, err
 				}
-				rep := gsdml.Check(doc)
 				if err := interrupted(ctx); err != nil {
 					return nil, err
 				}
@@ -198,7 +203,7 @@ or with --strict any issue. This is not PI's GSDML checker.`,
 					}
 					rep.Issues = append(rep.Issues, mi...)
 				}
-				r := checkResult{File: args[0], SchemaVersion: rep.SchemaVersion, Issues: rep.Issues, Scope: checkScope, strict: strict,
+				r := checkResult{File: args[0], SchemaVersion: rep.SchemaVersion, Issues: rep.Issues, Scope: structureScope(against, rep.SchemaVersion) + checkScope, strict: strict,
 					Errors: rep.Count(gsdml.SeverityError), Warnings: rep.Count(gsdml.SeverityWarning), Unvalidated: rep.Count(gsdml.SeverityUnvalidated)}
 				if r.Issues == nil {
 					r.Issues = []gsdml.Issue{}
@@ -208,6 +213,7 @@ or with --strict any issue. This is not PI's GSDML checker.`,
 		},
 	}
 	c.Flags().BoolVar(&strict, "strict", false, "Exit code 7 on warnings and unvalidated content too")
+	c.Flags().StringVar(&against, "against", againstSchema, "Check the structure against the schema of the file's version (schema) or go-profinet's catalog (catalog)")
 	return c
 }
 

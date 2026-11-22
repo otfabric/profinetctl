@@ -22,8 +22,11 @@ import (
 type checkJSON struct {
 	SchemaVersion                 string `json:"schema_version"`
 	Errors, Warnings, Unvalidated int
-	Issues                        []struct{ Path, Message, Severity, Rule string }
-	Scope                         string
+	Issues                        []struct {
+		Path, Message, Severity, Rule string
+		Line                          int
+	}
+	Scope string
 }
 
 func TestGSDMLCheck(t *testing.T) {
@@ -43,24 +46,37 @@ func TestGSDMLCheck(t *testing.T) {
 	if out := n.ok("gsdml", "check", file, "-o", "table"); !strings.Contains(out, "SEVERITY") && !strings.Contains(out, "0 error") {
 		t.Fatalf("table:\n%s", out)
 	}
-	// An element outside the catalog: unvalidated, an issue under --strict.
+	// An element outside the schema: an error of the schema, with its
+	// line; against the catalog, unvalidated, an issue under --strict.
 	b, err := os.ReadFile(file)
 	if err != nil {
 		t.Fatal(err)
 	}
 	odd := bytes.Replace(b, []byte("</DeviceIdentity>"), []byte("<FutureThing/></DeviceIdentity>"), 1)
 	oddFile := writeFile(t, "odd.xml", odd)
-	n.json(&r, "gsdml", "check", oddFile)
-	if r.Unvalidated == 0 || r.Errors != 0 || r.Issues[0].Severity != "unvalidated" || r.Issues[0].Rule != "unknown" {
-		t.Fatalf("odd %+v", r)
+	out, _, code := n.run("gsdml", "check", oddFile, "--format", "json")
+	decode(t, out, &r)
+	if code != 7 || r.Errors != 1 || r.Issues[0].Rule != "schema" || r.Issues[0].Line == 0 || !strings.Contains(r.Scope, "schema of version 2.35") {
+		t.Fatalf("odd: exit %d %+v", code, r)
 	}
-	if _, _, code := n.run("gsdml", "check", oddFile, "--strict"); code != 7 {
+	if out, _, _ := n.run("gsdml", "check", oddFile); !strings.Contains(out, "line ") {
+		t.Fatalf("odd text:\n%s", out)
+	}
+	if out, _, _ := n.run("gsdml", "check", oddFile, "-o", "table"); !strings.Contains(out, "LINE") {
+		t.Fatalf("odd table:\n%s", out)
+	}
+	n.json(&r, "gsdml", "check", oddFile, "--against", "catalog")
+	if r.Unvalidated == 0 || r.Errors != 0 || r.Issues[0].Severity != "unvalidated" || r.Issues[0].Rule != "unknown" || !strings.Contains(r.Scope, "catalog") {
+		t.Fatalf("odd against the catalog %+v", r)
+	}
+	if _, _, code := n.run("gsdml", "check", oddFile, "--against", "catalog", "--strict"); code != 7 {
 		t.Fatalf("--strict exit %d", code)
 	}
+	n.fails(2, "invalid_input", "gsdml", "check", oddFile, "--against", "xsd")
 	// An error: a reference to nothing.
 	bad := bytes.Replace(b, []byte(`TextId="`), []byte(`TextId="nothing-`), 1)
 	badFile := writeFile(t, "bad.xml", bad)
-	out, _, code := n.run("gsdml", "check", badFile, "--format", "json")
+	out, _, code = n.run("gsdml", "check", badFile, "--format", "json")
 	if code != 7 {
 		t.Fatalf("exit %d:\n%s", code, out)
 	}
