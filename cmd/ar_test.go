@@ -107,6 +107,10 @@ func TestGSDMLCommands(t *testing.T) {
 	n.fails(3, "invalid_gsdml", "gsdml", "modules", file, "--dap", "NoSuchDAP")
 	n.fails(3, "input_file_open_failed", "gsdml", "inspect", file+".none")
 	n.fails(3, "invalid_gsdml", "gsdml", "inspect", writeFile(t, "x.xml", []byte("<nope/>")))
+	// A GSDML file read for its model (--gsdml, modules, submodules): one
+	// that does not open, or does not parse.
+	n.fails(3, "input_file_open_failed", "gsdml", "modules", file+".none")
+	n.fails(3, "invalid_gsdml", "gsdml", "modules", writeFile(t, "z.xml", []byte("not xml")))
 	n.fails(3, "invalid_gsdml", "gsdml", "validate", writeFile(t, "y.xml", []byte("not xml")))
 	n.fails(2, "invalid_input", "gsdml", "generate")
 	n.fails(3, "invalid_model", "gsdml", "generate", "--model", writeFile(t, "m.json", []byte("{")))
