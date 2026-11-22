@@ -23,6 +23,38 @@ ending with a `---` line and no `---` line inside a section
 
 ---
 
+## v0.17.1
+
+**Date:** 2026-11-22
+**Previous release:** v0.17.0
+
+## Summary
+
+`gsdml plan` previews what an AR writes more faithfully: it takes the AR
+commands' `--slot`, and its table output no longer hides the plan's
+issues.
+
+## Changes
+
+### Added
+
+- **`gsdml plan --slot N`**: only the DAP and these slots, as the AR
+  commands' `--slot` (shared device), so that the plan is the one an AR
+  with the same flags writes.
+
+### Changed
+
+- **`gsdml plan --format table`** writes the plan's issues to stderr, each
+  with its severity; the table itself still has the writes only. Text
+  output names the severity of each issue too, and so do the AR commands'
+  `warning: parameter plan:` lines.
+- An AR command with both a parameter plan (`--param-value`,
+  `--param-defaults`) and `--param` warns on stderr that the `--param`
+  records are written after the plan's, unchecked against the GSDML file
+  and its TransferSequence.
+
+---
+
 ## v0.17.0
 
 **Date:** 2026-11-22

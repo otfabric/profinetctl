@@ -3,10 +3,15 @@
 package cmd
 
 import (
+	"fmt"
 	"os"
 	"slices"
 	"strings"
 	"testing"
+
+	"github.com/otfabric/go-profinet"
+	"github.com/otfabric/go-profinet/gsdml"
+	"github.com/otfabric/profinetctl/internal/errs"
 )
 
 // paramRecord replaces record 16 of slot 2's submodule, which the
@@ -145,6 +150,99 @@ func TestConnectParamValueErrors(t *testing.T) {
 	// A value the file does not allow: nothing is sent.
 	n.fails(3, "invalid_input", append(append([]string{}, base...), "--gsdml", gf, "--param-value", "2:1:16:MODE=9")...)
 	n.fails(3, "invalid_input", append(append([]string{}, base...), "--gsdml", gf, "--param-value", "bad")...)
-	// --param of another record goes with the plan.
-	n.ok(append(append([]string{}, base...), "--gsdml", gf, "--param-defaults", "--param", "2:1:17:00")...)
+	// --param of another record goes with the plan, after it, with a
+	// warning that it is not checked.
+	_, errOut, code := n.run(append(append([]string{}, base...), "--gsdml", gf, "--param-defaults", "--param", "2:1:17:00")...)
+	if code != 0 || !strings.Contains(errOut, "warning: --param records are written after the parameter plan's") {
+		t.Fatalf("--param with a plan: %d\n%s", code, errOut)
+	}
+	// The warnings of the plan go to stderr, with their severity.
+	_, errOut, code = n.run(append(append([]string{}, base...), "--gsdml", paramGSDMLFile(t, warnRecord), "--param-defaults")...)
+	if code != 0 || !strings.Contains(errOut, "warning: parameter plan: warning: ") {
+		t.Fatalf("plan warnings: %d\n%s", code, errOut)
+	}
+}
+
+// warnRecord is paramRecord with a default outside MODE's AllowedValues: a
+// warning of the plan, not an error.
+var warnRecord = strings.Replace(paramRecord, `DefaultValue="1" AllowedValues="0..3"`, `DefaultValue="7" AllowedValues="0..3"`, 1)
+
+// Warnings do not stop a plan; every output shows them, a table on stderr.
+func TestGSDMLPlanWarnings(t *testing.T) {
+	t.Parallel()
+	n := newTestNet(t)
+	gf := paramGSDMLFile(t, warnRecord)
+	var r planResult
+	n.json(&r, "gsdml", "plan", gf, "--param-defaults")
+	if !r.Planned || len(r.Writes) != 1 || r.Writes[0].Data != "0705" || r.Warnings == 0 || len(r.Issues) != r.Warnings+r.Unvalidated {
+		t.Fatalf("%+v", r)
+	}
+	if out := n.ok("gsdml", "plan", gf, "--param-defaults"); !strings.Contains(out, "warning: ") || !strings.Contains(out, "1 warning(s)") {
+		t.Fatalf("text:\n%s", out)
+	}
+	out, errOut, code := n.run("gsdml", "plan", gf, "--param-defaults", "--format", "table")
+	if code != 0 || !strings.Contains(out, "0705") || strings.Contains(out, "warning") || !strings.Contains(errOut, "warning: ") {
+		t.Fatalf("table %d\nstdout: %s\nstderr: %s", code, out, errOut)
+	}
+	// A table of a refused plan: no rows, the errors on stderr, exit 7.
+	overlap := strings.Replace(paramRecord, `<Ref DataType="Unsigned8" ByteOffset="0"`,
+		`<Const ByteOffset="0" Data="0x00"></Const><Const ByteOffset="0" Data="0x01"></Const><Ref DataType="Unsigned8" ByteOffset="0"`, 1)
+	if _, errOut, code := n.run("gsdml", "plan", paramGSDMLFile(t, overlap), "--param-defaults", "--format", "table"); code != 7 || !strings.Contains(errOut, "error: ") {
+		t.Fatalf("refused table %d\n%s", code, errOut)
+	}
+}
+
+// --slot plans the modules an AR with the same --slot owns.
+func TestGSDMLPlanSlot(t *testing.T) {
+	t.Parallel()
+	n := newTestNet(t)
+	gf := paramGSDMLFile(t, paramRecord)
+	var r planResult
+	n.json(&r, "gsdml", "plan", gf, "--param-defaults", "--slot", "2")
+	if len(r.Writes) != 1 || r.Writes[0].Slot != 2 {
+		t.Fatalf("slot 2: %+v", r)
+	}
+	n.json(&r, "gsdml", "plan", gf, "--param-defaults", "--slot", "1,3")
+	if !r.Planned || len(r.Writes) != 0 {
+		t.Fatalf("slots 1 and 3: %+v", r)
+	}
+	// A value for a record of a slot the AR does not own.
+	n.fails(3, "invalid_input", "gsdml", "plan", gf, "--slot", "1", "--param-value", "2:1:16:MODE=1")
+	n.fails(3, "invalid_input", "gsdml", "plan", gf, "--slot", "9")
+	n.fails(3, "invalid_input", "gsdml", "plan", gf, "--slot", "0")
+}
+
+func TestPlanHelpers(t *testing.T) {
+	t.Parallel()
+	long := strings.Repeat("x", 100)
+	if c := clip(long); len(c) >= len(long) || !strings.HasSuffix(c, "…") || clip("ab") != "ab" {
+		t.Fatalf("clip %q", c)
+	}
+	for _, c := range []struct {
+		err  error
+		code string
+	}{
+		{fmt.Errorf("x: %w", profinet.ErrUnsupported), "unsupported_gsdml"},
+		{fmt.Errorf("x: %w", profinet.ErrMalformed), "invalid_gsdml"},
+		{fmt.Errorf("x: %w", profinet.ErrInvalidConfig), "invalid_input"},
+	} {
+		if e, ok := errs.As(planError(c.err)); !ok || e.Code != c.code || e.Kind != errs.KindInvalidInput {
+			t.Fatalf("%v: %+v", c.err, e)
+		}
+	}
+	if w := planWarnings(gsdml.ParameterPlan{Issues: []gsdml.Issue{{Severity: gsdml.SeverityError}, {Severity: gsdml.SeverityWarning}, {Severity: gsdml.SeverityUnvalidated}}}); len(w) != 2 {
+		t.Fatalf("warnings %v", w)
+	}
+	r := newPlanResult("f", "", gsdml.ParameterPlan{Issues: []gsdml.Issue{{Severity: gsdml.SeverityUnvalidated, Path: "p", Message: "m"}},
+		Writes: []gsdml.PlannedWrite{{Write: gsdml.RecordWrite{Slot: 1, Subslot: 1, Index: 2, Data: []byte{1}}}}}, true)
+	if out, _ := r.MarshalTextOutput(); r.Unvalidated != 1 || !strings.Contains(out, "record 2 -") || !strings.Contains(out, "unvalidated: p: m") {
+		t.Fatalf("%+v\n%s", r, out)
+	}
+	if msg := (func() string {
+		_, err := parseParamValues([]string{strings.Repeat("y", 100)})
+		e, _ := errs.As(err)
+		return e.Message
+	})(); !strings.Contains(msg, "…") {
+		t.Fatalf("clipped message %q", msg)
+	}
 }
