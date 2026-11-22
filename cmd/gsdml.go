@@ -575,6 +575,6 @@ file goes to stdout; with a directory it gets its conventional name
 	generateCmd.Flags().StringVarP(&out, "output-file", "O", "", "Write to this file, or under the conventional name to this directory")
 	generateCmd.Flags().StringVar(&version, "pnio-version", "", "Declared PNIO_Version (default V2.35)")
 	generateCmd.Flags().BoolVar(&supervisor, "device-access", true, "Declare DeviceAccessSupported (supervisor AR)")
-	g.AddCommand(inspectCmd, validateCmd, newGSDMLCheckCmd(a), newGSDMLSchemaCmd(a), newGSDXCmd(a), modulesCmd, submodulesCmd, generateCmd)
+	g.AddCommand(inspectCmd, validateCmd, newGSDMLCheckCmd(a), newGSDMLSchemaCmd(a), newGSDXCmd(a), modulesCmd, submodulesCmd, newGSDMLPlanCmd(a), generateCmd)
 	return g
 }

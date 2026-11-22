@@ -23,6 +23,46 @@ ending with a `---` line and no `---` line inside a section
 
 ---
 
+## v0.17.0
+
+**Date:** 2026-11-22
+**Previous release:** v0.16.0
+
+## Summary
+
+Parameter records from the GSDML file's fields: `--param-value` sets a
+field by its ID or name and profinetctl builds the record with go-profinet
+v0.17.0's `PlanParameters`, checked against the file before anything is
+sent; `gsdml plan` shows the records without connecting.
+
+## Changes
+
+### Added
+
+- **`gsdml plan FILE`**: the parameter records an AR with the same
+  `--dap`, `--plug`, `--param-value` and `--param-defaults` writes before
+  PrmEnd, in write order (ascending TransferSequence per submodule, then
+  the records without one in file order; submodules in slot and subslot
+  order), with the records' issues. Sends nothing. Exit code 7 when
+  go-profinet refuses the plan for errors of the records (`planned`
+  false).
+- **`--param-value SLOT:SUBSLOT:INDEX:FIELD=VALUE`** and
+  **`--param-defaults`** on `connect`, `ar`, `iocr`, `io` and `alarms`
+  (with `--gsdml`): the planned records are written before PrmEnd, ahead
+  of `--param`. Only Changeable fields can be set; a value outside a
+  field's AllowedValues or ValueItem exits 3 and sends nothing. Warnings of
+  the plan go to stderr.
+
+### Changed
+
+- Built on go-profinet v0.17.0 (from v0.14.1).
+- Exit code 2 (`invalid_flag_combination`) for `--param-value` or
+  `--param-defaults` without `--gsdml`, and for a `--param` of a record
+  the plan writes; exit code 3 (`invalid_input`) for a `--param-value` the
+  file does not allow (docs/exitcodes.md).
+
+---
+
 ## v0.16.0
 
 **Date:** 2026-11-22
