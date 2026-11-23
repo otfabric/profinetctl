@@ -30,15 +30,29 @@ ending with a `---` line and no `---` line inside a section
 
 ## Summary
 
-Built on go-profinet v0.18.0: `gsdml validate` and `gsdml check` report
+Built on go-profinet v0.21.0: `gsdml validate` and `gsdml check` report
 the parameter records of the file as go-profinet's record rules check
-them.
+them, and `device info` shows the submodules of every API of a device,
+not those of API 0 alone.
 
 ## Changes
 
 ### Changed
 
-- Built on go-profinet v0.18.0 (from v0.17.0).
+- Built on go-profinet v0.21.0 (from v0.17.0). Since go-profinet v0.20.0
+  a model built from a GSDML file keeps the submodules' `API`, so `connect`,
+  `ar` and the other commands that use `--gsdml` send it on the wire, where
+  they sent API 0.
+- **`device info`** reads APIData (0xF821) for the device's APIs, then
+  RealIdentificationData (0xF000) of each, at most 64. A module of an API
+  other than 0 shows its API in the text (`API 0x00004E01`), and the table
+  gets an `API` column; a device of API 0 alone is shown as before. JSON:
+  new field `api_discovery` (`"apidata"`, or `"unavailable"` when the
+  device does not answer APIData); `modules` in slot order, API order
+  within a slot. A device that does not answer APIData is read at API 0
+  only, with the error "API discovery unavailable; results may be
+  incomplete" (exit code 7); a failed read of one API is an error for that
+  API and the others are shown.
 - **`gsdml validate`** reports the errors of the parameter records:
   a record go-profinet cannot convert (`parameter-record`), Consts that
   share octets, a ValueItemTarget that names no ValueItem, TransferSequence

@@ -116,7 +116,7 @@ A missing privilege exits with code 9 and the error code `permission_denied` ([d
 | `im read [--record 0,1,...]` | I&M0, and the I&M1–4 it lists as supported |
 | `im write --function --location --date --descriptor --signature` | write I&M1–4 of the DAP (in an IOCAR with `--gsdml`/`--model`, as `record write`); when a record fails after others were written, the result names both (exit code 7) |
 | `diagnostics [--slot --subslot]` | the diagnosis of the device or of one submodule, decoded |
-| `device info` | identity, I&M0 and the real configuration (modules and submodules, RealIdentificationData) |
+| `device info` | identity, I&M0 and the real configuration (modules and submodules of every API the device lists in APIData, RealIdentificationData) |
 | `status` | reachability (DCP, RPC), diagnosis by severity, link and neighbor of each port |
 | `lldp neighbors [--wait D]` | the LLDP neighbors of the host's interface (listens 6 s) |
 | `topology [--wait D] [--lldp-wait D] [--read-any-address]` | every device's port neighbors (PDRealData) and the links between them; it reads the devices in a subnet of the interface (with `--read-any-address` all), 8 at a time, for at most 2 × `--timeout`; above 4096 answers to its Identify it maps the first 4096, marked truncated (exit code 7) |
