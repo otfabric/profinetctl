@@ -23,6 +23,72 @@ ending with a `---` line and no `---` line inside a section
 
 ---
 
+## v0.19.0
+
+**Date:** 2026-11-23
+**Previous release:** v0.18.0
+
+## Summary
+
+Built on go-profinet v0.22.0 (from v0.21.0): parameter records in the
+profile range 0xB000–0xBFFF, the record indexes of a subslot reserved for
+profiles, are records like the user records 0x0000–0x7FFF. A GSDML file
+with them converts, `gsdml check` and `gsdml validate` check them, `gsdml
+submodules` and `gsdml plan` list them, and `connect` and the other
+commands that use `--gsdml` write them at the start of an AR. `gsdml plan`
+shows the API of each write. profinetctl implements no profile: what
+PROFIdrive or IO-Link defines for such a record is the device's.
+
+## Changes
+
+### Added
+
+- **`gsdml plan`**: JSON field `api` of each write, the API of its
+  submodule in the plugged configuration (docs/json-output.md). The text
+  shows the API of a write to a submodule of an API other than 0
+  (`API 0x00004E01 slot 4 subslot 0x0002 record 46592 ...`), and the table
+  gets an `API` column when there is such a write; a plan of API 0 alone
+  is shown as before.
+
+### Changed
+
+- Built on go-profinet v0.22.0 (from v0.21.0).
+- **`--gsdml`** (`connect`, `ar`, `record write --gsdml`, `gsdml plan`,
+  `gsdml submodules`, `gsdml inspect`): a `ParameterRecordDataItem` in
+  0xB000–0xBFFF converts like a user record, with its Consts, Refs and
+  defaults. `connect --param-defaults` and `--param-value` write it before
+  PrmEnd in its submodule's API. A record above 0x7FFF outside that range
+  (0x8000–0xAFFF, 0xC000–0xFFFF) is still an invalid GSDML file.
+  `--model FILE` accepts a record in 0xB000–0xBFFF.
+- **`gsdml check`**: no `record-index` warning for a record in
+  0xB000–0xBFFF, and the record rules (`parameter-record`, ValueItems,
+  TransferSequence, ...) now check those records.
+- **`gsdml validate`** reports the errors of the record rules for those
+  records too.
+
+### Breaking
+
+Consumer assessment: files and models without records in 0xB000–0xBFFF
+give the same output, exit codes and wire traffic as with v0.18.0, apart
+from the new `api` field of `gsdml plan`. Scripts that use files with
+such records (in the public corpus: three IO-Link Wireless master files,
+six device access points) see these differences:
+
+- **Exit code**: `connect`, `ar`, `gsdml plan` and the other `--gsdml`
+  commands refused such a file with exit code 3 (`invalid_gsdml`, "record
+  Index"); they now run, and exit 0 on success.
+- **Wire**: an AR with `--param-defaults` or a `--param-value` writes the
+  file's records in 0xB000–0xBFFF before PrmEnd; v0.18.0 never got that
+  far. A device that does not accept them refuses the write and the AR,
+  as for any refused parameter record.
+- **`gsdml check`**: such a file had a `record-index` warning per record
+  and a `model` error per device access point (exit code 7); now it has
+  neither, and may have errors of the record rules it did not report.
+- **`gsdml validate`**: a file valid with v0.18.0 may now report errors
+  of those records (exit code 7).
+
+---
+
 ## v0.18.0
 
 **Date:** 2026-11-23

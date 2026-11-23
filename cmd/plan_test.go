@@ -233,7 +233,7 @@ func TestPlanHelpers(t *testing.T) {
 	if w := planWarnings(gsdml.ParameterPlan{Issues: []gsdml.Issue{{Severity: gsdml.SeverityError}, {Severity: gsdml.SeverityWarning}, {Severity: gsdml.SeverityUnvalidated}}}); len(w) != 2 {
 		t.Fatalf("warnings %v", w)
 	}
-	r := newPlanResult("f", "", gsdml.ParameterPlan{Issues: []gsdml.Issue{{Severity: gsdml.SeverityUnvalidated, Path: "p", Message: "m"}},
+	r := newPlanResult("f", "", nil, gsdml.ParameterPlan{Issues: []gsdml.Issue{{Severity: gsdml.SeverityUnvalidated, Path: "p", Message: "m"}},
 		Writes: []gsdml.PlannedWrite{{Write: gsdml.RecordWrite{Slot: 1, Subslot: 1, Index: 2, Data: []byte{1}}}}}, true)
 	if out, _ := r.MarshalTextOutput(); r.Unvalidated != 1 || !strings.Contains(out, "record 2 -") || !strings.Contains(out, "unvalidated: p: m") {
 		t.Fatalf("%+v\n%s", r, out)

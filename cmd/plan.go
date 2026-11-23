@@ -7,6 +7,7 @@ import (
 	"encoding/hex"
 	"errors"
 	"fmt"
+	"slices"
 	"strings"
 
 	"github.com/otfabric/go-profinet"
@@ -159,6 +160,7 @@ func planIssueText(i gsdml.Issue) string {
 
 // planWriteView is a record write of a plan.
 type planWriteView struct {
+	API              uint32 `json:"api"`
 	Slot             uint16 `json:"slot"`
 	Subslot          uint16 `json:"subslot"`
 	Index            uint16 `json:"index"`
@@ -185,10 +187,18 @@ type planResult struct {
 	Issues      []gsdml.Issue   `json:"issues"`
 }
 
-func newPlanResult(file, dap string, plan gsdml.ParameterPlan, planned bool) planResult {
+// newPlanResult reports plan. A write's API is its submodule's in the
+// plugged model m (the controller addresses a write by slot and subslot,
+// which are unique in a slot across APIs, and takes the API from the
+// model); a write outside m is reported in API 0.
+func newPlanResult(file, dap string, m *model.Device, plan gsdml.ParameterPlan, planned bool) planResult {
 	r := planResult{File: file, DAP: orDash(dap), Planned: planned, Writes: []planWriteView{}, Issues: []gsdml.Issue{}}
+	apis := map[[2]uint16]uint32{}
+	if m != nil {
+		m.Each(func(p model.PluggedSubmodule) { apis[[2]uint16{p.Slot, p.Submodule.Subslot}] = p.Submodule.API })
+	}
 	for _, w := range plan.Writes {
-		r.Writes = append(r.Writes, planWriteView{Slot: w.Write.Slot, Subslot: w.Write.Subslot, Index: uint16(w.Write.Index), Name: w.Name,
+		r.Writes = append(r.Writes, planWriteView{API: apis[[2]uint16{w.Write.Slot, w.Write.Subslot}], Slot: w.Write.Slot, Subslot: w.Write.Subslot, Index: uint16(w.Write.Index), Name: w.Name,
 			ModuleIdent: w.ModuleIdent, SubmoduleIdent: w.SubmoduleIdent, TransferSequence: w.TransferSequence, Values: w.Values,
 			Length: len(w.Write.Data), Data: hex.EncodeToString(w.Write.Data)})
 	}
@@ -213,8 +223,12 @@ func (r planResult) MarshalTextOutput() (string, error) {
 		if name == "" {
 			name = "-"
 		}
-		fmt.Fprintf(&b, "slot %d subslot 0x%04X record %d %-24s seq %d  %d octet(s), %d value(s): %s\n",
-			w.Slot, w.Subslot, w.Index, name, w.TransferSequence, w.Length, w.Values, w.Data)
+		api := ""
+		if w.API != 0 {
+			api = fmt.Sprintf("API 0x%08X ", w.API)
+		}
+		fmt.Fprintf(&b, "%sslot %d subslot 0x%04X record %d %-24s seq %d  %d octet(s), %d value(s): %s\n",
+			api, w.Slot, w.Subslot, w.Index, name, w.TransferSequence, w.Length, w.Values, w.Data)
 	}
 	for _, i := range r.Issues {
 		fmt.Fprintf(&b, "%s\n", planIssueText(i))
@@ -227,15 +241,30 @@ func (r planResult) MarshalTextOutput() (string, error) {
 	return b.String(), nil
 }
 
+// otherAPIs reports whether a write goes to a submodule of an API other
+// than 0: the table then has an API column, as in device info.
+func (r planResult) otherAPIs() bool {
+	return slices.ContainsFunc(r.Writes, func(w planWriteView) bool { return w.API != 0 })
+}
+
 func (r planResult) TableHeaders() []string {
-	return []string{"SLOT", "SUBSLOT", "INDEX", "NAME", "SEQ", "VALUES", "DATA"}
+	h := []string{"SLOT", "SUBSLOT", "INDEX", "NAME", "SEQ", "VALUES", "DATA"}
+	if r.otherAPIs() {
+		h = append([]string{"API"}, h...)
+	}
+	return h
 }
 
 func (r planResult) TableRows() [][]string {
 	var rows [][]string
+	api := r.otherAPIs()
 	for _, w := range r.Writes {
-		rows = append(rows, []string{fmt.Sprint(w.Slot), fmt.Sprintf("0x%04X", w.Subslot), fmt.Sprint(w.Index), w.Name,
-			fmt.Sprint(w.TransferSequence), fmt.Sprint(w.Values), w.Data})
+		row := []string{fmt.Sprint(w.Slot), fmt.Sprintf("0x%04X", w.Subslot), fmt.Sprint(w.Index), w.Name,
+			fmt.Sprint(w.TransferSequence), fmt.Sprint(w.Values), w.Data}
+		if api {
+			row = append([]string{fmt.Sprintf("0x%08X", w.API)}, row...)
+		}
+		rows = append(rows, row)
 	}
 	return rows
 }
@@ -301,7 +330,7 @@ after the planned ones, as given.`,
 						return nil, planError(err)
 					}
 				}
-				r := newPlanResult(args[0], dap, plan, err == nil)
+				r := newPlanResult(args[0], dap, m, plan, err == nil)
 				// A table has the writes only: the issues go to stderr.
 				if f, _ := format.Parse(a.format); f == format.FormatTable {
 					for _, i := range r.Issues {

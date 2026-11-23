@@ -164,7 +164,7 @@ func TestConnect(t *testing.T) {
 	}
 	stats := sum["stats"].(map[string]any)
 	if stats["frames_received"].(float64) < 50 || stats["watchdog_expiries"] != 0.0 {
-		t.Fatalf("stats %v", stats)
+		t.Fatalf("stats %v\nevents:\n%s", stats, out)
 	}
 	// Text output; the AR is released at the end.
 	out = n.ok("-i", "pn0", "connect", "-s", "dev-a", "--model", modelFile(t), "--duration", "500ms")
