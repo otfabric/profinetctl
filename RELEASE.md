@@ -45,6 +45,11 @@ of the file as go-profinet's record rules check them.
   not answer it (docs/json-output.md). The text shows the API of a module
   of an API other than 0 (`slot 4   module 0x00000050 API 0x00004E01`),
   and the table gets an `API` column when such a module is present.
+- **`gsdml submodules`**: JSON field `api`, the submodule's
+  `VirtualSubmoduleItem` `API` (0 when the file gives none). The text shows
+  the API of a submodule of an API other than 0
+  (`0x00000050/0x00000052  API 0x00004E01  subslot 0x0002`), and the table
+  gets an `API` column when such a submodule is listed.
 
 ### Changed
 
@@ -79,8 +84,8 @@ Consumer assessment: scripts that read the exit code of `device info`, or
 that connect to devices described by GSDML files with submodules of an API
 other than 0, see a difference; for devices and files of API 0 alone the
 output, exit codes and wire traffic are those of v0.17.1, apart from the
-new `api_discovery` field and the `gsdml validate`/`check` record rules
-above.
+new JSON fields (`api_discovery` of `device info`, `api` of
+`gsdml submodules`) and the `gsdml validate`/`check` record rules above.
 
 - **Exit code of `device info`**: a device that does not answer APIData
   (0xF821) is read at API 0 only and the command exits **7** (partial),
@@ -97,10 +102,6 @@ above.
   a `model` error and a `model` unvalidated issue, `gsdml inspect` in the
   device access point's `error`. v0.17.1 ignored the attribute. `--model FILE` with a DAP submodule of an API other than
   0 is an invalid model (exit 3).
-
-### Not changed
-
-- `gsdml submodules` does not show a submodule's API.
 
 ---
 
