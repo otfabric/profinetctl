@@ -11,6 +11,7 @@ import (
 
 	"github.com/otfabric/go-profinet/controller"
 	"github.com/otfabric/go-profinet/device"
+	"github.com/otfabric/go-profinet/gsdml"
 	"github.com/otfabric/go-profinet/model"
 	"github.com/otfabric/go-profinet/pnio"
 	"github.com/otfabric/go-profinet/rpc"
@@ -166,5 +167,45 @@ func TestRealIdentDiscovery(t *testing.T) {
 	f = &fakeIdent{apis: many}
 	if _, _, errs = realIdent(ctx, f, noTimeout); len(f.reads) != maxAPIs || len(errs) != 1 || !strings.Contains(errs[0], "69 APIs") {
 		t.Fatalf("bounded: %d reads %q", len(f.reads), errs)
+	}
+}
+
+// gsdml submodules shows the API of a submodule of an API other than 0, read
+// from the VirtualSubmoduleItem's API attribute; a file of API 0 alone is
+// listed as before.
+func TestGSDMLSubmodulesAPI(t *testing.T) {
+	t.Parallel()
+	n := newTestNet(t)
+	doc, err := gsdml.FromModel(mixedAPIModel(), gsdml.GenerateOptions{})
+	if err != nil {
+		t.Fatal(err)
+	}
+	b, err := gsdml.Marshal(doc)
+	if err != nil {
+		t.Fatal(err)
+	}
+	file := writeFile(t, "mixed.xml", b)
+	var r submodulesResult
+	n.json(&r, "gsdml", "submodules", file, "--module", "0x50")
+	if len(r.Submodules) != 2 || r.Submodules[0].API != 0 || r.Submodules[0].Subslot != 1 ||
+		r.Submodules[1].API != apiIOLink || r.Submodules[1].Subslot != 2 || r.Submodules[1].IdentNumber != 0x52 {
+		t.Fatalf("submodules %+v", r)
+	}
+	out := n.ok("gsdml", "submodules", file, "--module", "0x50")
+	if !strings.Contains(out, "0x00000050/0x00000051  subslot 0x0001") || !strings.Contains(out, "0x00000050/0x00000052  API 0x00004E01  subslot 0x0002") {
+		t.Fatalf("text:\n%s", out)
+	}
+	table := n.ok("gsdml", "submodules", file, "--module", "0x50", "-o", "table")
+	if h := strings.Fields(strings.SplitN(table, "\n", 2)[0]); len(h) != 8 || h[2] != "API" || !strings.Contains(table, "0x00004E01") || !strings.Contains(table, "0x00000000") {
+		t.Fatalf("table:\n%s", table)
+	}
+
+	// API 0 alone: no API column, no API in the text.
+	plain := gsdmlFile(t)
+	if out := n.ok("gsdml", "submodules", plain, "-o", "table"); strings.Contains(out, "API") {
+		t.Fatalf("API 0 table:\n%s", out)
+	}
+	if out := n.ok("gsdml", "submodules", plain); strings.Contains(out, "API") {
+		t.Fatalf("API 0 text:\n%s", out)
 	}
 }

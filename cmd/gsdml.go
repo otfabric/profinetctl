@@ -11,6 +11,7 @@ import (
 	"os"
 	"path/filepath"
 	"regexp"
+	"slices"
 	"strings"
 	"time"
 
@@ -334,6 +335,7 @@ type submoduleView struct {
 	ModuleIdent uint32       `json:"module_ident_number"`
 	Name        string       `json:"name"`
 	IdentNumber uint32       `json:"ident_number"`
+	API         uint32       `json:"api"`
 	Subslot     uint16       `json:"subslot"`
 	InputLen    uint16       `json:"input_length"`
 	OutputLen   uint16       `json:"output_length"`
@@ -369,7 +371,11 @@ type submodulesResult struct {
 func (r submodulesResult) MarshalTextOutput() (string, error) {
 	var b strings.Builder
 	for _, s := range r.Submodules {
-		fmt.Fprintf(&b, "0x%08X/0x%08X  subslot 0x%04X  %-28s %d in / %d out octets, %d record(s)\n", s.ModuleIdent, s.IdentNumber, s.Subslot, s.Name, s.InputLen, s.OutputLen, len(s.Records))
+		api := ""
+		if s.API != 0 {
+			api = fmt.Sprintf("API 0x%08X  ", s.API)
+		}
+		fmt.Fprintf(&b, "0x%08X/0x%08X  %ssubslot 0x%04X  %-28s %d in / %d out octets, %d record(s)\n", s.ModuleIdent, s.IdentNumber, api, s.Subslot, s.Name, s.InputLen, s.OutputLen, len(s.Records))
 		for _, rec := range s.Records {
 			fmt.Fprintf(&b, "    record 0x%04X %q, %d octets, default %s\n", rec.Index, rec.Name, rec.Length, rec.Default)
 		}
@@ -377,15 +383,30 @@ func (r submodulesResult) MarshalTextOutput() (string, error) {
 	return b.String(), nil
 }
 
+// otherAPIs reports whether a submodule of an API other than 0 is listed:
+// the table then has an API column, as in device info.
+func (r submodulesResult) otherAPIs() bool {
+	return slices.ContainsFunc(r.Submodules, func(s submoduleView) bool { return s.API != 0 })
+}
+
 func (r submodulesResult) TableHeaders() []string {
-	return []string{"MODULE", "SUBMODULE", "SUBSLOT", "NAME", "IN", "OUT", "RECORDS"}
+	h := []string{"MODULE", "SUBMODULE", "SUBSLOT", "NAME", "IN", "OUT", "RECORDS"}
+	if r.otherAPIs() {
+		h = slices.Insert(h, 2, "API")
+	}
+	return h
 }
 
 func (r submodulesResult) TableRows() [][]string {
 	var rows [][]string
+	api := r.otherAPIs()
 	for _, s := range r.Submodules {
-		rows = append(rows, []string{fmt.Sprintf("0x%08X", s.ModuleIdent), fmt.Sprintf("0x%08X", s.IdentNumber), fmt.Sprintf("0x%04X", s.Subslot),
-			s.Name, fmt.Sprint(s.InputLen), fmt.Sprint(s.OutputLen), fmt.Sprint(len(s.Records))})
+		row := []string{fmt.Sprintf("0x%08X", s.ModuleIdent), fmt.Sprintf("0x%08X", s.IdentNumber), fmt.Sprintf("0x%04X", s.Subslot),
+			s.Name, fmt.Sprint(s.InputLen), fmt.Sprint(s.OutputLen), fmt.Sprint(len(s.Records))}
+		if api {
+			row = slices.Insert(row, 2, fmt.Sprintf("0x%08X", s.API))
+		}
+		rows = append(rows, row)
 	}
 	return rows
 }
@@ -519,7 +540,7 @@ profinetctl, and this is not PI's GSDML checker.`,
 					}
 					for _, s := range mt.Submodules {
 						r.Submodules = append(r.Submodules, submoduleView{Module: mt.Name, ModuleIdent: mt.IdentNumber, Name: s.Name, IdentNumber: s.IdentNumber,
-							Subslot: s.Subslot, InputLen: s.InputLen, OutputLen: s.OutputLen, Records: recordViews(s.Records)})
+							API: s.API, Subslot: s.Subslot, InputLen: s.InputLen, OutputLen: s.OutputLen, Records: recordViews(s.Records)})
 					}
 				}
 				if module != "" && len(r.Submodules) == 0 {

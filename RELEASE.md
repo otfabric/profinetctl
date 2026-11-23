@@ -30,29 +30,42 @@ ending with a `---` line and no `---` line inside a section
 
 ## Summary
 
-Built on go-profinet v0.21.0: `gsdml validate` and `gsdml check` report
-the parameter records of the file as go-profinet's record rules check
-them, and `device info` shows the submodules of every API of a device,
-not those of API 0 alone.
+Built on go-profinet v0.21.0 (from v0.17.0). `device info` shows the
+submodules of every API of a device, not those of API 0 alone; commands
+that take `--gsdml` keep the submodules' APIs of the file and send them on
+the wire; `gsdml validate` and `gsdml check` report the parameter records
+of the file as go-profinet's record rules check them.
 
 ## Changes
 
+### Added
+
+- **`device info`**: JSON field `api_discovery`, `"apidata"` when the
+  device listed its APIs in APIData (0xF821), `"unavailable"` when it did
+  not answer it (docs/json-output.md). The text shows the API of a module
+  of an API other than 0 (`slot 4   module 0x00000050 API 0x00004E01`),
+  and the table gets an `API` column when such a module is present.
+- **`gsdml submodules`**: JSON field `api`, the submodule's
+  `VirtualSubmoduleItem` `API` (0 when the file gives none). The text shows
+  the API of a submodule of an API other than 0
+  (`0x00000050/0x00000052  API 0x00004E01  subslot 0x0002`), and the table
+  gets an `API` column when such a submodule is listed.
+
 ### Changed
 
-- Built on go-profinet v0.21.0 (from v0.17.0). Since go-profinet v0.20.0
-  a model built from a GSDML file keeps the submodules' `API`, so `connect`,
-  `ar` and the other commands that use `--gsdml` send it on the wire, where
-  they sent API 0.
 - **`device info`** reads APIData (0xF821) for the device's APIs, then
-  RealIdentificationData (0xF000) of each, at most 64. A module of an API
-  other than 0 shows its API in the text (`API 0x00004E01`), and the table
-  gets an `API` column; a device of API 0 alone is shown as before. JSON:
-  new field `api_discovery` (`"apidata"`, or `"unavailable"` when the
-  device does not answer APIData); `modules` in slot order, API order
-  within a slot. A device that does not answer APIData is read at API 0
-  only, with the error "API discovery unavailable; results may be
-  incomplete" (exit code 7); a failed read of one API is an error for that
-  API and the others are shown.
+  RealIdentificationData (0xF000) of each, at most 64, outside an AR;
+  `modules` is in slot order, API order within a slot. A failed read of
+  one API is an error for that API (`RealIdentificationData (API
+  0x00004E01): …`), and the others are shown. A device of API 0 alone is
+  shown as before.
+- **`--gsdml`** (`connect`, `ar`, `gsdml plan` and the other commands that
+  build a model from a GSDML file): the model keeps each submodule's
+  `VirtualSubmoduleItem` `API` (go-profinet v0.20.0), so an AR addresses
+  those submodules, their IO data and their parameter records in their
+  API. `--model FILE` accepts a submodule's `api`.
+- **`gsdml generate`** writes the `API` attribute of a submodule of an API
+  other than 0.
 - **`gsdml validate`** reports the errors of the parameter records:
   a record go-profinet cannot convert (`parameter-record`), Consts that
   share octets, a ValueItemTarget that names no ValueItem, TransferSequence
@@ -64,6 +77,31 @@ not those of API 0 alone.
   `parameter-record` error, and the device access points are then not
   converted (rule `model`), as with any other error.
 - `scope` of both names the record rules (docs/json-output.md).
+
+### Breaking
+
+Consumer assessment: scripts that read the exit code of `device info`, or
+that connect to devices described by GSDML files with submodules of an API
+other than 0, see a difference; for devices and files of API 0 alone the
+output, exit codes and wire traffic are those of v0.17.1, apart from the
+new JSON fields (`api_discovery` of `device info`, `api` of
+`gsdml submodules`) and the `gsdml validate`/`check` record rules above.
+
+- **Exit code of `device info`**: a device that does not answer APIData
+  (0xF821) is read at API 0 only and the command exits **7** (partial),
+  with the error "API discovery unavailable; results may be incomplete
+  (API 0 only)"; v0.17.1 exited 0 for the same device and did not say the
+  result could be incomplete (docs/exitcodes.md).
+- **Wire**: with `--gsdml`, a submodule of an API other than 0 is sent in
+  its API (Connect, IO data, parameter writes); v0.17.1 sent API 0, which
+  such a device refuses or answers for another submodule.
+- **GSDML input**: a `VirtualSubmoduleItem` whose `API` is not an
+  Unsigned32 is now an invalid GSDML file for `--gsdml` (exit 3,
+  `invalid_gsdml`), and a DAP submodule of an API other than 0 is
+  unsupported (exit 3, `unsupported_gsdml`); `gsdml check` reports them as
+  a `model` error and a `model` unvalidated issue, `gsdml inspect` in the
+  device access point's `error`. v0.17.1 ignored the attribute. `--model FILE` with a DAP submodule of an API other than
+  0 is an invalid model (exit 3).
 
 ---
 
