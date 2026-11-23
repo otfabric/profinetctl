@@ -3,8 +3,10 @@
 package cmd
 
 import (
+	"cmp"
 	"context"
 	"fmt"
+	"slices"
 	"strings"
 
 	"github.com/spf13/cobra"
@@ -31,9 +33,13 @@ type subslotView struct {
 type deviceInfoResult struct {
 	Device deviceView `json:"device"`
 	IM0    *im0V      `json:"im0,omitempty"`
-	// Modules is the real configuration (RealIdentificationData, 0xF000).
+	// Modules is the real configuration (RealIdentificationData, 0xF000,
+	// of every API APIData, 0xF821, lists).
 	Modules []slotView `json:"modules"`
-	Errors  []string   `json:"errors,omitempty"`
+	// APIDiscovery is "apidata" when the device listed its APIs and
+	// "unavailable" when it did not, so that Modules holds API 0 only.
+	APIDiscovery string   `json:"api_discovery"`
+	Errors       []string `json:"errors,omitempty"`
 }
 
 // Partial reports parts that could not be read.
@@ -52,7 +58,11 @@ func (r deviceInfoResult) MarshalTextOutput() (string, error) {
 	if len(r.Modules) > 0 {
 		b.WriteString("Real configuration:\n")
 		for _, s := range r.Modules {
-			fmt.Fprintf(&b, "  slot %-3d module 0x%08X\n", s.Slot, s.IdentNumber)
+			if s.API != 0 {
+				fmt.Fprintf(&b, "  slot %-3d module 0x%08X API 0x%08X\n", s.Slot, s.IdentNumber, s.API)
+			} else {
+				fmt.Fprintf(&b, "  slot %-3d module 0x%08X\n", s.Slot, s.IdentNumber)
+			}
 			for _, sub := range s.Submodules {
 				fmt.Fprintf(&b, "    subslot 0x%04X submodule 0x%08X\n", sub.Subslot, sub.IdentNumber)
 			}
@@ -64,25 +74,106 @@ func (r deviceInfoResult) MarshalTextOutput() (string, error) {
 	return b.String(), nil
 }
 
+// otherAPIs reports whether a module of an API other than 0 is in the
+// real configuration: the table then has an API column.
+func (r deviceInfoResult) otherAPIs() bool {
+	return slices.ContainsFunc(r.Modules, func(s slotView) bool { return s.API != 0 })
+}
+
 func (r deviceInfoResult) TableHeaders() []string {
-	return []string{"SLOT", "MODULE", "SUBSLOT", "SUBMODULE"}
+	h := []string{"SLOT", "MODULE", "SUBSLOT", "SUBMODULE"}
+	if r.otherAPIs() {
+		h = append([]string{"API"}, h...)
+	}
+	return h
 }
 
 func (r deviceInfoResult) TableRows() [][]string {
 	var rows [][]string
+	api := r.otherAPIs()
 	for _, s := range r.Modules {
 		for _, sub := range s.Submodules {
-			rows = append(rows, []string{fmt.Sprint(s.Slot), fmt.Sprintf("0x%08X", s.IdentNumber), fmt.Sprintf("0x%04X", sub.Subslot), fmt.Sprintf("0x%08X", sub.IdentNumber)})
+			row := []string{fmt.Sprint(s.Slot), fmt.Sprintf("0x%08X", s.IdentNumber), fmt.Sprintf("0x%04X", sub.Subslot), fmt.Sprintf("0x%08X", sub.IdentNumber)}
+			if api {
+				row = append([]string{fmt.Sprintf("0x%08X", s.API)}, row...)
+			}
+			rows = append(rows, row)
 		}
 	}
 	return rows
 }
 
-// realIdent reads the real configuration of a device.
-func realIdent(ctx context.Context, s *rpcSession) ([]slotView, error) {
-	cctx, cancel := s.ctx(ctx)
+// identReader reads the records of the real configuration;
+// *controller.RecordClient is one.
+type identReader interface {
+	ReadAPIData(ctx context.Context, ar rpc.UUID) ([]uint32, error)
+	Read(ctx context.Context, ar rpc.UUID, rec controller.Record, maxLen uint32) ([]byte, error)
+}
+
+// maxAPIs bounds the APIs device info reads the real configuration of.
+const maxAPIs = 64
+
+// API discovery outcomes of device info (JSON api_discovery).
+const (
+	// discoveryAPIData: the device listed its APIs (APIData, 0xF821).
+	discoveryAPIData = "apidata"
+	// discoveryUnavailable: APIData could not be read; API 0 alone was.
+	discoveryUnavailable = "unavailable"
+)
+
+// realIdent reads the real configuration of a device: its APIs from
+// APIData (0xF821), then RealIdentificationData for one API (0xF000) of
+// each, outside an AR. A device that does not answer APIData is read at
+// API 0 only, and an error says the result may be incomplete. The modules
+// are in slot order, API order within a slot.
+func realIdent(ctx context.Context, rc identReader, timeout func(context.Context) (context.Context, context.CancelFunc)) (mods []slotView, discovery string, errs []string) {
+	cctx, cancel := timeout(ctx)
+	apis, err := rc.ReadAPIData(cctx, rpc.NilUUID)
+	cancel()
+	discovery = discoveryAPIData
+	switch {
+	case err != nil:
+		discovery = discoveryUnavailable
+		errs = append(errs, "APIData: "+errorOf(err)+": API discovery unavailable; results may be incomplete (API 0 only)")
+		apis = []uint32{0}
+	case len(apis) == 0:
+		errs = append(errs, "APIData lists no API; API 0 read")
+		apis = []uint32{0}
+	}
+	apis = slices.Compact(slices.Sorted(slices.Values(apis)))
+	if len(apis) > maxAPIs {
+		errs = append(errs, fmt.Sprintf("APIData lists %d APIs; the first %d read", len(apis), maxAPIs))
+		apis = apis[:maxAPIs]
+	}
+	mods = []slotView{}
+	for _, api := range apis {
+		got, err := realIdentAPI(ctx, rc, timeout, api)
+		if err != nil {
+			what := "RealIdentificationData"
+			if api != 0 {
+				what = fmt.Sprintf("RealIdentificationData (API 0x%08X)", api)
+			}
+			errs = append(errs, what+": "+errorOf(err))
+			continue
+		}
+		mods = append(mods, got...)
+	}
+	slices.SortStableFunc(mods, func(a, b slotView) int {
+		if c := cmp.Compare(a.Slot, b.Slot); c != 0 {
+			return c
+		}
+		return cmp.Compare(a.API, b.API)
+	})
+	return mods, discovery, errs
+}
+
+// realIdentAPI reads RealIdentificationData for one API: the read header
+// addresses the API at slot 0, subslot 1. Entries of another API than the
+// one asked for are left out.
+func realIdentAPI(ctx context.Context, rc identReader, timeout func(context.Context) (context.Context, context.CancelFunc), api uint32) ([]slotView, error) {
+	cctx, cancel := timeout(ctx)
 	defer cancel()
-	b, err := s.rc.Read(cctx, rpc.NilUUID, controller.Record{Slot: 0, Subslot: 1, Index: pnio.IndexRealIdentAPI}, 0)
+	b, err := rc.Read(cctx, rpc.NilUUID, controller.Record{API: api, Slot: 0, Subslot: 1, Index: pnio.IndexRealIdentAPI}, 0)
 	if err != nil {
 		return nil, err
 	}
@@ -94,10 +185,13 @@ func realIdent(ctx context.Context, s *rpcSession) ([]slotView, error) {
 	if err != nil {
 		return nil, err
 	}
-	out := []slotView{}
-	for _, api := range id.APIs {
-		for _, sl := range api.Slots {
-			v := slotView{API: api.API, Slot: sl.Slot, IdentNumber: sl.IdentNumber, Submodules: []subslotView{}}
+	var out []slotView
+	for _, a := range id.APIs {
+		if a.API != api {
+			continue
+		}
+		for _, sl := range a.Slots {
+			v := slotView{API: a.API, Slot: sl.Slot, IdentNumber: sl.IdentNumber, Submodules: []subslotView{}}
 			for _, sub := range sl.Submodules {
 				v.Submodules = append(v.Submodules, subslotView{Subslot: sub.Subslot, IdentNumber: sub.IdentNumber})
 			}
@@ -130,11 +224,9 @@ func newDeviceCmd(a *app) *cobra.Command {
 				} else {
 					r.Errors = append(r.Errors, "I&M0: "+e.Error)
 				}
-				if mods, err := realIdent(ctx, s); err != nil {
-					r.Errors = append(r.Errors, "RealIdentificationData: "+errorOf(err))
-				} else {
-					r.Modules = mods
-				}
+				mods, discovery, errs := realIdent(ctx, s.rc, s.ctx)
+				r.Modules, r.APIDiscovery = mods, discovery
+				r.Errors = append(r.Errors, errs...)
 				return r, nil
 			})
 		},
