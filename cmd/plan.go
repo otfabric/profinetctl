@@ -309,7 +309,11 @@ after the planned ones, as given.`,
 				if err != nil {
 					return nil, err
 				}
-				if err := plug(m, plugs, slotRulesOf(doc, dap)); err != nil {
+				var omitted []omittedModule
+				if len(plugs) > 0 {
+					omitted = omittedModules(doc, dap)
+				}
+				if err := plug(m, plugs, slotRulesOf(doc, dap), omitted); err != nil {
 					return nil, err
 				}
 				if m, err = withSlots(m, slots); err != nil {

@@ -298,6 +298,17 @@ type moduleView struct {
 type modulesResult struct {
 	DAP     string       `json:"dap"`
 	Modules []moduleView `json:"modules"`
+	// Omitted are the modules the file lets the DAP use that are not in
+	// the model's catalog, with why: they need a configurable submodule,
+	// which go-profinet does not convert (--plug refuses them).
+	Omitted []omittedModuleView `json:"omitted_modules,omitempty"`
+}
+
+// omittedModuleView is a module the catalog leaves out.
+type omittedModuleView struct {
+	ID          string `json:"id"`
+	IdentNumber uint32 `json:"ident_number"`
+	Reason      string `json:"reason"`
 }
 
 func (r modulesResult) MarshalTextOutput() (string, error) {
@@ -310,6 +321,12 @@ func (r modulesResult) MarshalTextOutput() (string, error) {
 		fmt.Fprintf(&b, "0x%08X  %-32s slots %-8s %d submodule(s), %d in / %d out octets\n", m.IdentNumber, m.Name, slots, m.Submodules, m.InputLen, m.OutputLen)
 	}
 	fmt.Fprintf(&b, "%d module(s) usable with DAP %s\n", len(r.Modules), r.DAP)
+	if len(r.Omitted) > 0 {
+		fmt.Fprintf(&b, "%d module(s) of the file not in the catalog (cannot be plugged):\n", len(r.Omitted))
+		for _, o := range r.Omitted {
+			fmt.Fprintf(&b, "0x%08X  %s: %s\n", o.IdentNumber, o.ID, o.Reason)
+		}
+	}
 	return b.String(), nil
 }
 
@@ -325,6 +342,9 @@ func (r modulesResult) TableRows() [][]string {
 			slots = strings.Trim(fmt.Sprint(m.Slots), "[]")
 		}
 		rows = append(rows, []string{fmt.Sprintf("0x%08X", m.IdentNumber), m.Name, slots, fmt.Sprint(m.Submodules), fmt.Sprint(m.InputLen), fmt.Sprint(m.OutputLen)})
+	}
+	for _, o := range r.Omitted {
+		rows = append(rows, []string{fmt.Sprintf("0x%08X", o.IdentNumber), o.ID, "omitted", "-", "-", "-"})
 	}
 	return rows
 }
@@ -485,7 +505,7 @@ profinetctl, and this is not PI's GSDML checker.`,
 		Args:  cobra.ExactArgs(1),
 		RunE: func(c *cobra.Command, args []string) error {
 			return a.result(c, func(ctx context.Context) (any, error) {
-				m, err := loadModel(args[0], dap, "")
+				m, doc, err := loadModelDoc(args[0], dap, "")
 				if err != nil {
 					return nil, err
 				}
@@ -493,6 +513,9 @@ profinetctl, and this is not PI's GSDML checker.`,
 					return nil, err
 				}
 				r := modulesResult{DAP: orDash(dap), Modules: []moduleView{}}
+				for _, om := range omittedModules(doc, dap) {
+					r.Omitted = append(r.Omitted, omittedModuleView{ID: om.ID, IdentNumber: om.IdentNumber, Reason: om.Err.Error()})
+				}
 				for _, mt := range m.ModuleTypes() {
 					v := moduleView{Name: mt.Name, IdentNumber: mt.IdentNumber, Submodules: len(mt.Submodules), Info: mt.Info}
 					for _, s := range mt.Submodules {

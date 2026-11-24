@@ -169,7 +169,11 @@ func (o *arOptions) parse() (*parsedAR, error) {
 	if doc != nil && !o.plugAnySlot {
 		rules = slotRulesOf(doc, o.dap)
 	}
-	if err := plug(m, o.plugs, rules); err != nil {
+	var omitted []omittedModule
+	if len(o.plugs) > 0 {
+		omitted = omittedModules(doc, o.dap)
+	}
+	if err := plug(m, o.plugs, rules, omitted); err != nil {
 		return nil, err
 	}
 	if m, err = withSlots(m, o.slots); err != nil {
@@ -390,9 +394,48 @@ func clipList(s string) string {
 	return s[:64] + "..."
 }
 
+// omittedModule is a module gsdml.ToModel leaves out of a device access
+// point's catalog (gsdml.ModuleReport.Omitted): it needs a configurable
+// submodule, which go-profinet does not convert.
+type omittedModule struct {
+	ID          string
+	IdentNumber uint32
+	Err         error
+}
+
+// omittedModules returns the modules ToModel leaves out of the catalog of
+// the device access point dap (the first for ""), once per ident number,
+// in file order; none for no document.
+func omittedModules(doc *gsdml.Document, dap string) []omittedModule {
+	if doc == nil {
+		return nil
+	}
+	reps, err := gsdml.AnalyzeModels(doc)
+	if err != nil {
+		return nil
+	}
+	var out []omittedModule
+	seen := map[uint32]bool{}
+	for _, r := range reps {
+		if dap != "" && r.DAP != dap {
+			continue
+		}
+		for _, mr := range r.Modules {
+			if mr.Omitted && !seen[mr.ModuleIdent] {
+				seen[mr.ModuleIdent] = true
+				out = append(out, omittedModule{ID: mr.Target, IdentNumber: mr.ModuleIdent, Err: mr.ModuleErr})
+			}
+		}
+		break
+	}
+	return out
+}
+
 // plug plugs modules of the catalog into slots, in the slots rules allow
-// them in; nil rules allow every slot.
-func plug(m *model.Device, plugs []string, rules *slotRules) error {
+// them in; nil rules allow every slot. omitted are the modules of the
+// GSDML file the catalog leaves out (omittedModules): plugging one fails
+// with why.
+func plug(m *model.Device, plugs []string, rules *slotRules, omitted []omittedModule) error {
 	for _, pl := range plugs {
 		slotS, identS, ok := strings.Cut(pl, "=")
 		slot, err := parseUint16(slotS)
@@ -412,6 +455,11 @@ func plug(m *model.Device, plugs []string, rules *slotRules) error {
 			}
 		}
 		if mod == nil {
+			for _, om := range omitted {
+				if om.IdentNumber == uint32(ident) {
+					return errs.InvalidInput(errs.CodeUnsupportedGSDML, fmt.Sprintf("--plug %q: module %s (0x%08X) is not in the catalog: %v", pl, om.ID, ident, om.Err), om.Err)
+				}
+			}
 			return errs.InvalidInput(errs.CodeInvalidInput, fmt.Sprintf("--plug %q: no module type with ident number 0x%08X (profinetctl gsdml modules lists them)", pl, ident), nil)
 		}
 		if err := rules.check(pl, slot, uint32(ident)); err != nil {

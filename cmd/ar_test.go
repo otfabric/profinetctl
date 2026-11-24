@@ -262,13 +262,13 @@ func TestConnectErrors(t *testing.T) {
 func TestPlug(t *testing.T) {
 	t.Parallel()
 	m := testModel()
-	if err := plug(m, []string{"4=0x40", "1=0x40"}, nil); err != nil {
+	if err := plug(m, []string{"4=0x40", "1=0x40"}, nil, nil); err != nil {
 		t.Fatal(err)
 	}
 	if len(m.Slots) != 4 || m.Slots[0].Module.IdentNumber != 0x40 || m.Slots[3].Number != 4 {
 		t.Fatalf("slots %+v", m.Slots)
 	}
-	if err := plug(m, []string{"0=0x40"}, nil); err == nil {
+	if err := plug(m, []string{"0=0x40"}, nil, nil); err == nil {
 		t.Fatal("slot 0 plugged")
 	}
 }
@@ -326,7 +326,7 @@ func TestPlugSlotRules(t *testing.T) {
 		t.Fatalf("clip %q", got)
 	}
 	m := testModel()
-	if err := plug(m, []string{"3=0x40"}, &slotRules{dap: "D", physical: "0..3", allowed: map[uint32][]string{0x40: {"1"}}}); err == nil {
+	if err := plug(m, []string{"3=0x40"}, &slotRules{dap: "D", physical: "0..3", allowed: map[uint32][]string{0x40: {"1"}}}, nil); err == nil {
 		t.Fatal("plugged where it is not allowed")
 	}
 }
