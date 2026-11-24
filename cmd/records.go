@@ -7,6 +7,7 @@ import (
 	"encoding/hex"
 	"errors"
 	"fmt"
+	"slices"
 	"strings"
 	"time"
 
@@ -356,6 +357,7 @@ func im0View(m pnio.IM0) *im0V {
 type imResult struct {
 	MAC     string    `json:"mac"`
 	Station string    `json:"station"`
+	API     uint32    `json:"api"`
 	Slot    uint16    `json:"slot"`
 	Subslot uint16    `json:"subslot"`
 	Records []imEntry `json:"records"`
@@ -373,7 +375,7 @@ func (r imResult) Partial() bool {
 
 func (r imResult) MarshalTextOutput() (string, error) {
 	var b strings.Builder
-	fmt.Fprintf(&b, "%s (%s) slot %d subslot 0x%04X\n", orDash(r.Station), r.MAC, r.Slot, r.Subslot)
+	fmt.Fprintf(&b, "%s (%s) %sslot %d subslot 0x%04X\n", orDash(r.Station), r.MAC, apiPrefix(r.API), r.Slot, r.Subslot)
 	for _, e := range r.Records {
 		switch {
 		case e.Error != "":
@@ -465,8 +467,18 @@ func imRecord(n int) (idx pnio.Index, ok bool) {
 	return pnio.IndexIM0 + pnio.Index(n), true
 }
 
-// readIM reads one I&M record and decodes it.
-func readIM(ctx context.Context, s *rpcSession, slot, subslot uint16, n int) imEntry {
+// apiPrefix is "API 0x%08X " for an API other than 0 and "" for API 0: the
+// text of a result names the API only where it is not 0.
+func apiPrefix(api uint32) string {
+	if api == 0 {
+		return ""
+	}
+	return fmt.Sprintf("API 0x%08X ", api)
+}
+
+// readIM reads one I&M record of the submodule at (api, slot, subslot) and
+// decodes it.
+func readIM(ctx context.Context, s *rpcSession, api uint32, slot, subslot uint16, n int) imEntry {
 	e := imEntry{Record: fmt.Sprintf("I&M%d", n)}
 	idx, ok := imRecord(n)
 	if !ok {
@@ -475,7 +487,7 @@ func readIM(ctx context.Context, s *rpcSession, slot, subslot uint16, n int) imE
 	}
 	cctx, cancel := s.ctx(ctx)
 	defer cancel()
-	b, err := s.rc.Read(cctx, rpc.NilUUID, controller.Record{Slot: slot, Subslot: subslot, Index: idx}, 0)
+	b, err := s.rc.Read(cctx, rpc.NilUUID, controller.Record{API: api, Slot: slot, Subslot: subslot, Index: idx}, 0)
 	if err != nil {
 		e.Error = classify("", err).Error()
 		return e
@@ -532,6 +544,7 @@ func readIM1(ctx context.Context, w *recordWriter, rec controller.Record) (pnio.
 func newIMCmd(a *app) *cobra.Command {
 	g := groupCmd("im", "Read and write the identification and maintenance records (I&M0-4)")
 	var t target
+	var api uint32
 	var slot, subslot uint16
 	var which []int
 	read := &cobra.Command{
@@ -553,11 +566,11 @@ func newIMCmd(a *app) *cobra.Command {
 					return nil, err
 				}
 				defer s.Close()
-				r := imResult{MAC: s.id.MAC.String(), Station: s.id.NameOfStation, Slot: slot, Subslot: subslot}
+				r := imResult{MAC: s.id.MAC.String(), Station: s.id.NameOfStation, API: api, Slot: slot, Subslot: subslot}
 				list := which
 				if len(list) == 0 {
 					// I&M0 says which of the others the device supports.
-					first := readIM(ctx, s, slot, subslot, 0)
+					first := readIM(ctx, s, api, slot, subslot, 0)
 					r.Records = append(r.Records, first)
 					if first.IM0 == nil {
 						return nil, errs.New(errs.KindRefused, errs.CodePNIOError, "I&M0: "+first.Error, nil)
@@ -574,13 +587,14 @@ func newIMCmd(a *app) *cobra.Command {
 					if n == 0 && len(which) == 0 {
 						continue
 					}
-					r.Records = append(r.Records, readIM(ctx, s, slot, subslot, n))
+					r.Records = append(r.Records, readIM(ctx, s, api, slot, subslot, n))
 				}
 				return r, nil
 			})
 		},
 	}
 	addRPCTargetFlags(read, &t)
+	read.Flags().Uint32Var(&api, "api", 0, "Application process identifier (API) of the submodule")
 	read.Flags().Uint16Var(&slot, "slot", 0, "Slot of the submodule")
 	read.Flags().Uint16Var(&subslot, "subslot", 1, "Subslot of the submodule (the DAP: slot 0, subslot 1)")
 	read.Flags().IntSliceVar(&which, "record", nil, "Read only these records (0-4; default: I&M0 and those it lists as supported)")
@@ -811,7 +825,7 @@ func (r diagnosticsResult) MarshalTextOutput() (string, error) {
 		fmt.Fprintf(&b, "%s: no diagnosis\n", orDash(r.Station))
 	}
 	for _, e := range r.Entries {
-		fmt.Fprintf(&b, "slot %d subslot 0x%04X channel 0x%04X %s: %s (0x%04X), %s", e.Slot, e.Subslot, e.Channel, e.Direction, e.Error, e.ErrorType, e.Severity)
+		fmt.Fprintf(&b, "%sslot %d subslot 0x%04X channel 0x%04X %s: %s (0x%04X), %s", apiPrefix(e.API), e.Slot, e.Subslot, e.Channel, e.Direction, e.Error, e.ErrorType, e.Severity)
 		if e.ExtError != 0 {
 			fmt.Fprintf(&b, ", extended 0x%04X value 0x%08X", e.ExtError, e.ExtValue)
 		}
@@ -820,20 +834,36 @@ func (r diagnosticsResult) MarshalTextOutput() (string, error) {
 	return b.String(), nil
 }
 
+// otherAPIs reports whether an entry is of a submodule of an API other
+// than 0: the table then has an API column, as in device info.
+func (r diagnosticsResult) otherAPIs() bool {
+	return slices.ContainsFunc(r.Entries, func(e diagView) bool { return e.API != 0 })
+}
+
 func (r diagnosticsResult) TableHeaders() []string {
-	return []string{"SLOT", "SUBSLOT", "CHANNEL", "DIRECTION", "ERROR", "TYPE", "SEVERITY"}
+	h := []string{"SLOT", "SUBSLOT", "CHANNEL", "DIRECTION", "ERROR", "TYPE", "SEVERITY"}
+	if r.otherAPIs() {
+		h = append([]string{"API"}, h...)
+	}
+	return h
 }
 
 func (r diagnosticsResult) TableRows() [][]string {
 	var rows [][]string
+	api := r.otherAPIs()
 	for _, e := range r.Entries {
-		rows = append(rows, []string{fmt.Sprint(e.Slot), fmt.Sprintf("0x%04X", e.Subslot), fmt.Sprintf("0x%04X", e.Channel), e.Direction, e.Error, fmt.Sprintf("0x%04X", e.ErrorType), e.Severity})
+		row := []string{fmt.Sprint(e.Slot), fmt.Sprintf("0x%04X", e.Subslot), fmt.Sprintf("0x%04X", e.Channel), e.Direction, e.Error, fmt.Sprintf("0x%04X", e.ErrorType), e.Severity}
+		if api {
+			row = append([]string{fmt.Sprintf("0x%08X", e.API)}, row...)
+		}
+		rows = append(rows, row)
 	}
 	return rows
 }
 
 func newDiagnosticsCmd(a *app) *cobra.Command {
 	var t target
+	var api uint32
 	var slot, subslot uint16
 	c := &cobra.Command{
 		Use:     "diagnostics",
@@ -845,6 +875,10 @@ func newDiagnosticsCmd(a *app) *cobra.Command {
 				return err
 			}
 			sub := c.Flags().Changed("slot") || c.Flags().Changed("subslot")
+			if c.Flags().Changed("api") && !sub {
+				// The diagnosis of the device is that of every API.
+				return errs.New(errs.KindUsage, errs.CodeInvalidFlagCombination, "--api selects a submodule: give it with --slot or --subslot", nil)
+			}
 			return a.result(c, func(ctx context.Context) (any, error) {
 				s, err := a.openRPC(ctx, &t)
 				if err != nil {
@@ -853,7 +887,12 @@ func newDiagnosticsCmd(a *app) *cobra.Command {
 				defer s.Close()
 				cctx, cancel := s.ctx(ctx)
 				defer cancel()
-				d, err := s.rc.ReadDiagnosis(cctx, rpc.NilUUID, slot, subslot, sub)
+				var d []pnio.DiagnosisData
+				if sub {
+					d, err = s.rc.ReadSubmoduleDiagnosis(cctx, rpc.NilUUID, api, slot, subslot)
+				} else {
+					d, err = s.rc.ReadDiagnosis(cctx, rpc.NilUUID, 0, 0, false)
+				}
 				if err != nil {
 					return nil, classify("read diagnosis", err)
 				}
@@ -862,6 +901,7 @@ func newDiagnosticsCmd(a *app) *cobra.Command {
 		},
 	}
 	addRPCTargetFlags(c, &t)
+	c.Flags().Uint32Var(&api, "api", 0, "API of the submodule (with --slot or --subslot)")
 	c.Flags().Uint16Var(&slot, "slot", 0, "Only this slot (with --subslot)")
 	c.Flags().Uint16Var(&subslot, "subslot", 1, "Only this subslot")
 	return c
