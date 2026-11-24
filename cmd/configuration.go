@@ -225,15 +225,12 @@ func slotOptions(c *gsdml.Configuration, slot uint16) (string, []gsdml.Submodule
 		return "", c.DAP(), nil
 	}
 	id, ok := c.Module(slot)
-	if !ok {
-		return "", nil, nil
+	mods := c.Modules()
+	i := slices.IndexFunc(mods, func(mo gsdml.ModuleOption) bool { return mo.ID == id })
+	if !ok || i < 0 {
+		return id, nil, nil
 	}
-	for _, mo := range c.Modules() {
-		if mo.ID == id {
-			return id, mo.Submodules, &mo.Module
-		}
-	}
-	return id, nil, nil
+	return id, mods[i].Submodules, &mods[i].Module
 }
 
 // submoduleID is the SubmoduleItem ID a --plug-submodule names: an ID of
@@ -444,9 +441,6 @@ are used in by default without a choice) exits 3.`,
 						return nil, err
 					}
 					ps = append(ps, p)
-				}
-				if err := interrupted(ctx); err != nil {
-					return nil, err
 				}
 				cfg, m, err := configure(args[0], doc, dap, ps, subs)
 				if err != nil {

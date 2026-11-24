@@ -531,11 +531,14 @@ profinetctl, and this is not PI's GSDML checker.`,
 				}
 				r := modulesResult{DAP: orDash(dap), Modules: []moduleView{}}
 				configurable := map[uint32]int{}
+				for _, om := range omittedModules(doc, dap) {
+					r.Omitted = append(r.Omitted, omittedModuleView{ID: om.ID, IdentNumber: om.IdentNumber, Reason: om.Err.Error()})
+				}
 				if c, cm, cerr := configure(args[0], doc, dap, nil, nil); cerr == nil {
 					// The default configuration: its catalog has the
 					// modules with configurable submodules too, with their
 					// defaults; the modules it cannot place are omitted.
-					m = cm
+					m, r.Omitted = cm, nil
 					seen := map[uint32]bool{}
 					for _, mt := range m.ModuleTypes() {
 						seen[mt.IdentNumber] = true
@@ -547,10 +550,6 @@ profinetctl, and this is not PI's GSDML checker.`,
 							seen[id] = true
 							r.Omitted = append(r.Omitted, omittedModuleView{ID: mo.ID, IdentNumber: id, Reason: optionError(mo)})
 						}
-					}
-				} else {
-					for _, om := range omittedModules(doc, dap) {
-						r.Omitted = append(r.Omitted, omittedModuleView{ID: om.ID, IdentNumber: om.IdentNumber, Reason: om.Err.Error()})
 					}
 				}
 				for _, mt := range m.ModuleTypes() {
@@ -662,16 +661,26 @@ file goes to stdout; with a directory it gets its conventional name
 	return g
 }
 
-// optionError is why the configuration cannot place a module: its own
-// error, else that of its first configurable submodule that has one.
+// optionError is why the default configuration leaves a module out of its
+// catalog: its own error, else that of its first configurable submodule
+// that has one, else two submodules used in one subslot by default (their
+// Defaults), which --plug-submodule decides.
 func optionError(mo gsdml.ModuleOption) string {
 	if mo.Error != "" {
 		return mo.Error
 	}
+	reason := "not in the catalog of the default configuration"
+	by := map[uint16]string{}
 	for _, o := range mo.Submodules {
 		if o.Error != "" {
 			return "configurable submodule " + o.ID + ": " + o.Error
 		}
+		for _, s := range o.Defaults {
+			if other, dup := by[s]; dup && other != o.ID {
+				reason = fmt.Sprintf("configurable submodules %s and %s are both used in subslot %d by default: --plug with --plug-submodule chooses one", other, o.ID, s)
+			}
+			by[s] = o.ID
+		}
 	}
-	return "not in the catalog of the default configuration"
+	return reason
 }

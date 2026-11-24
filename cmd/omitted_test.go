@@ -393,3 +393,66 @@ func TestOmittedModulesOf(t *testing.T) {
 		t.Fatalf("%+v", got)
 	}
 }
+
+// with0x40 is configurableDoc with the references of module 0x40 replaced.
+func with0x40(t *testing.T, refs ...*gsdml.SubmoduleItemRef) *gsdml.Document {
+	t.Helper()
+	doc := configurableDoc(t, false)
+	for _, mi := range doc.ProfileBody.ApplicationProcess.ModuleList.ModuleItems {
+		if mi.UseableSubmodules != nil {
+			mi.UseableSubmodules.SubmoduleItemRefs = refs
+		}
+	}
+	return doc
+}
+
+// Why gsdml modules leaves a module out: the module's own error, a
+// submodule's, or a subslot two submodules are used in by default.
+func TestOmittedModuleReasons(t *testing.T) {
+	t.Parallel()
+	n := newTestNet(t)
+	for _, tc := range []struct {
+		name   string
+		refs   []*gsdml.SubmoduleItemRef
+		reason string
+	}{
+		{"on a built-in subslot", []*gsdml.SubmoduleItemRef{{SubmoduleItemTarget: "SM_WIDE", FixedInSubslots: "1"}}, "built-in"},
+		{"two defaults", []*gsdml.SubmoduleItemRef{{SubmoduleItemTarget: "SM_WIDE", AllowedInSubslots: "2..3", UsedInSubslots: "2"},
+			{SubmoduleItemTarget: "SM_ALT", AllowedInSubslots: "2..3", UsedInSubslots: "2"}}, "configurable submodules SM_WIDE and SM_ALT are both used in subslot 2 by default"},
+	} {
+		gf := docFile(t, "reason.xml", with0x40(t, tc.refs...))
+		var mods modulesResult
+		n.json(&mods, "gsdml", "modules", gf)
+		if len(mods.Omitted) != 1 || mods.Omitted[0].IdentNumber != 0x40 || !strings.Contains(mods.Omitted[0].Reason, tc.reason) {
+			t.Fatalf("%s: %+v", tc.name, mods.Omitted)
+		}
+	}
+}
+
+// A configurable submodule go-profinet cannot convert is listed with why
+// and refused as invalid_gsdml; an ident number no configurable submodule
+// has is unknown; --plug of a model in JSON still parses.
+func TestPlugSubmoduleErrors(t *testing.T) {
+	t.Parallel()
+	n := newTestNet(t)
+	doc := with0x40(t, &gsdml.SubmoduleItemRef{SubmoduleItemTarget: "SM_WIDE", AllowedInSubslots: "2..3", UsedInSubslots: "2"},
+		&gsdml.SubmoduleItemRef{SubmoduleItemTarget: "SM_BAD", AllowedInSubslots: "3"})
+	sl := doc.ProfileBody.ApplicationProcess.SubmoduleList
+	bad := *sl.SubmoduleItems[1]
+	bad.ID, bad.SubmoduleIdentNumber = "SM_BAD", "0x00000044"
+	bad.RecordDataList = &gsdml.RecordDataList{ParameterRecordDataItems: []*gsdml.ParameterRecordDataItem{{Index: "x", Length: "1", Name: bad.ModuleInfo.Name}}}
+	sl.SubmoduleItems = append(sl.SubmoduleItems, &bad)
+	gf := docFile(t, "bad.xml", doc)
+	if out := n.ok("gsdml", "config", gf, "--plug", "4=0x40"); !strings.Contains(out, "SM_BAD") || !strings.Contains(out, ": cannot be placed: ") {
+		t.Fatalf("text:\n%s", out)
+	}
+	if msg := n.fails(3, "invalid_gsdml", "gsdml", "config", gf, "--plug", "4=0x40", "--plug-submodule", "4:3=SM_BAD"); !strings.Contains(msg, `--plug-submodule "4:3=SM_BAD"`) {
+		t.Fatal(msg)
+	}
+	if msg := n.fails(3, "invalid_input", "gsdml", "config", gf, "--plug", "4=0x40", "--plug-submodule", "4:3=0x99"); !strings.Contains(msg, "0x99") {
+		t.Fatal(msg)
+	}
+	if msg := n.fails(3, "invalid_input", "-i", "pn0", "connect", "-s", "x", "--model", modelFile(t), "--plug", "x"); !strings.Contains(msg, "want SLOT=IDENT") {
+		t.Fatal(msg)
+	}
+}
