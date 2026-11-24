@@ -23,9 +23,69 @@ ending with a `---` line and no `---` line inside a section
 
 ---
 
-## v0.20.0
+## v0.20.1
 
 **Date:** unreleased
+**Previous release:** v0.20.0
+
+## Summary
+
+`im read` fails with the kind of its I&M0 read: a timeout exits 5 and a
+malformed answer is a protocol error, as `record read` reports them; it
+reported every I&M0 failure as a refusal (exit 6, `pnio_error`). `make
+pnet-smoke` now also runs the commands that take `--api` against p-net
+and go-profinet's device with a submodule in API 0x4E01, and checks the
+structure of their JSON. Still built on go-profinet v0.22.0.
+
+## Changes
+
+### Fixed
+
+- **`im read`**: when I&M0 cannot be read, the error keeps the kind and
+  code of that read (docs/exitcodes.md): `timeout`/`request_timeout`
+  (exit 5) when the device does not answer, `protocol`/`protocol_violation`
+  (exit 6) for a malformed answer, such as the empty response p-net gives
+  for an API it does not have; a PNIO error status stays
+  `refused`/`pnio_error` (exit 6). The message is unchanged (`I&M0: ...`).
+  A record that does not decode is a `protocol_violation` too.
+  A script that expected exit 6 for an I&M0 timeout gets 5.
+
+### Tests
+
+- **`make pnet-smoke`** (Docker and python3, not run in CI). The new
+  checks parse the JSON and compare fields (python3 on the host); the
+  script waits for the AR and the device it starts instead of sleeping,
+  and fails when the AR leaves Running during the checks or does not end
+  cleanly at SIGTERM.
+  - against p-net while a second profinetctl holds an AR with its IO
+    module in API 0x4E01 (`testdata/pnet-model-api.json`): `device info`
+    lists slot 1 in API 0x4E01; `im read --api 0x4E01` and `diagnostics
+    --api 0x4E01` of slot 1 are answered, the same in API 0x4E02 are not
+    (p-net has no such API), which shows that the API reaches the device;
+    p-net answers I&M and the diagnosis of a slot in any API it has, so
+    this is the evidence, not the content; after the ARs of the script
+    with slot 1 in API 0, p-net lists slot 1 in API 0 as well as in
+    0x4E01 (observed), so `device info` is checked for the 0x4E01 entry;
+  - against go-profinet's interop device (otfnode of the go-profinet
+    version in go.mod, `testdata/otf-device-api.json`; not an independent
+    implementation): `device info`, `record read --api` of 0x0011 and the
+    read-only profile record 0xB900, `diagnostics --api`, and the refusals
+    in the wrong API (invalid area/API) and of I&M outside the DAP
+    (invalid index);
+  - the expected exit code of `identify` of a station no device answers
+    to is 11 (not found), as since v0.7.0; the script expected 8.
+- Not in the smoke test: `record read` of a user record (index 0x7FFF or
+  below) at p-net. p-net (ea5e554, the tree profinet-interop builds) ends
+  with a segmentation fault on a Read Implicit of such a record, in any
+  API, with or without an AR: it has no AR for the read and its user
+  record callback dereferences one (pf_cmrpc.c, pf_fspm.c). Fixed upstream
+  after that tree (rtlabs-com/p-net issue #594, commit c752521).
+
+---
+
+## v0.20.0
+
+**Date:** 2026-11-24
 **Previous release:** v0.19.0
 
 ## Summary

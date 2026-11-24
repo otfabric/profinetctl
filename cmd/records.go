@@ -309,6 +309,9 @@ type imEntry struct {
 	IM2    *im2V  `json:"im2,omitempty"`
 	IM3    *im3V  `json:"im3,omitempty"`
 	IM4    *im4V  `json:"im4,omitempty"`
+	// err is the classified error of Error, for the exit code when I&M0
+	// fails and the command fails with it.
+	err *errs.Error
 }
 
 type im0V struct {
@@ -489,9 +492,21 @@ func readIM(ctx context.Context, s *rpcSession, api uint32, slot, subslot uint16
 	defer cancel()
 	b, err := s.rc.Read(cctx, rpc.NilUUID, controller.Record{API: api, Slot: slot, Subslot: subslot, Index: idx}, 0)
 	if err != nil {
-		e.Error = classify("", err).Error()
+		e.fail(classify("", err))
 		return e
 	}
+	decodeIM(&e, n, b)
+	return e
+}
+
+// fail records the classified error err in e.
+func (e *imEntry) fail(err error) {
+	e.err, _ = errs.As(err)
+	e.Error = err.Error()
+}
+
+// decodeIM decodes the I&M n record b into e, or records why it cannot.
+func decodeIM(e *imEntry, n int, b []byte) {
 	blk, _, err := pnio.ReadBlock(b)
 	if err == nil {
 		switch n {
@@ -523,9 +538,8 @@ func readIM(ctx context.Context, s *rpcSession, api uint32, slot, subslot uint16
 		}
 	}
 	if err != nil {
-		e.Error = classify("decode", err).Error()
+		e.fail(classify("decode", err))
 	}
-	return e
 }
 
 // readIM1 reads the I&M1 record rec in the AR of w and decodes it.
@@ -573,7 +587,11 @@ func newIMCmd(a *app) *cobra.Command {
 					first := readIM(ctx, s, api, slot, subslot, 0)
 					r.Records = append(r.Records, first)
 					if first.IM0 == nil {
-						return nil, errs.New(errs.KindRefused, errs.CodePNIOError, "I&M0: "+first.Error, nil)
+						// The kind of the I&M0 failure decides the exit
+						// code: a timeout is 5, a malformed answer a
+						// protocol error. readIM classifies every failure
+						// of I&M0 (classify returns an *errs.Error).
+						return nil, errs.New(first.err.Kind, first.err.Code, "I&M0: "+first.Error, first.err)
 					}
 					for i := 1; i <= 4; i++ {
 						for _, sup := range first.IM0.Supported {

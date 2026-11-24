@@ -261,3 +261,23 @@ func TestBerOID(t *testing.T) {
 		}
 	}
 }
+
+// TestDecodeIMMalformed: an I&M record that does not decode is a protocol
+// error of that record, the kind im read fails with for I&M0.
+func TestDecodeIMMalformed(t *testing.T) {
+	t.Parallel()
+	for name, tc := range map[string]struct {
+		n int
+		b []byte
+	}{
+		"truncated block":   {0, []byte{0x00, 0x20}},
+		"I&M1 read as I&M0": {0, (&pnio.IM1{TagFunction: "f"}).Append(nil)},
+		"empty I&M4":        {4, nil},
+	} {
+		e := imEntry{Record: fmt.Sprintf("I&M%d", tc.n)}
+		decodeIM(&e, tc.n, tc.b)
+		if e.IM0 != nil || e.IM4 != nil || e.err == nil || e.err.Kind != errs.KindProtocol || e.err.Code != errs.CodeProtocolViolation || !strings.HasPrefix(e.Error, "decode: ") {
+			t.Fatalf("%s: %+v (err %+v)", name, e, e.err)
+		}
+	}
+}

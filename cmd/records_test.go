@@ -73,6 +73,10 @@ func TestRecordWithoutIPOrDeviceAccess(t *testing.T) {
 	}
 	// --ip overrides the address the device reports.
 	n.fails(5, "request_timeout", "-i", "pn0", "record", "read", "-s", "no-ip", "--index", "0xAFF0", "--ip", "192.168.0.99", "--timeout", "300ms")
+	// im read fails with the kind of its I&M0 read: a timeout is 5, not a refusal.
+	if msg := n.fails(5, "request_timeout", "-i", "pn0", "im", "read", "-s", "no-ip", "--ip", "192.168.0.99", "--timeout", "300ms"); !strings.HasPrefix(msg, "I&M0: ") {
+		t.Fatalf("message %q", msg)
+	}
 	msg = n.fails(6, "pnio_error", "-i", "pn0", "record", "write", "-s", "no-sar", "--slot", "2", "--index", "0x10", "--data", "0001")
 	if !strings.Contains(msg, "give --gsdml or --model") {
 		t.Fatalf("message %q", msg)
