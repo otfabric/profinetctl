@@ -230,7 +230,7 @@ make check      # everything CI runs
 make build      # checks, then bin/profinetctl (make build-nocheck skips the tests)
 ```
 
-The tests run profinetctl in process against go-profinet IO-Devices on a virtual Ethernet network, so they need neither privileges nor hardware. `make pnet-smoke` runs the DCP, record, I&M, diagnosis, topology and AR commands against an independent implementation, rt-labs p-net in Docker (the images of [profinet-interop](https://github.com/otfabric/profinet-interop)), on a real Linux bridge. See [CONTRIBUTING.md](CONTRIBUTING.md).
+The tests run profinetctl in process against go-profinet IO-Devices on a virtual Ethernet network, so they need neither privileges nor hardware. `make pnet-smoke` runs the DCP, record, I&M, diagnosis, topology and AR commands against an independent implementation, rt-labs p-net in Docker (the images of [profinet-interop](https://github.com/otfabric/profinet-interop)), on a real Linux bridge, and the commands that take `--api` against p-net with its IO module in API 0x4E01 and against go-profinet's interop device. See [CONTRIBUTING.md](CONTRIBUTING.md).
 
 ## License
 
