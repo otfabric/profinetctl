@@ -23,6 +23,79 @@ ending with a `---` line and no `---` line inside a section
 
 ---
 
+## v0.22.0
+
+**Date:** 2026-11-24
+**Previous release:** v0.21.0
+
+## Summary
+
+Built on go-profinet v0.24.0, whose `gsdml.Configuration` configures
+configurable GSDML submodules (`UseableSubmodules`). `--plug-submodule`
+chooses them for an AR and `gsdml plan`, the new `gsdml config` shows a
+device access point's configuration and its choices, and the device
+access points and modules v0.21.0 refused for configurable submodules
+now work with their defaults.
+
+## Changes
+
+### Added
+
+- **`--plug-submodule SLOT:SUBSLOT=SUBMODULE`** (`connect`, the other AR
+  commands, `gsdml plan`; repeatable, after `--plug`; slot 0 is the
+  DAP): puts a configurable submodule in a subslot the file allows it in,
+  by its SubmoduleItem ID or by its ident number when only one submodule
+  has it, or with `-` leaves the subslot empty.
+- **`gsdml config FILE [--dap ID] [--plug ...] [--plug-submodule ...]`**:
+  the resolved configuration (each slot with its module and submodules, a
+  configurable submodule marked with its ID) and the configurable
+  submodules of the DAP and of each plugged module, with the subslots the
+  file allows, fixes and uses them in. JSON: docs/json-output.md.
+- **`gsdml modules`**: `configurable_submodules` per module in JSON,
+  ", N configurable" in text.
+
+### Changed
+
+- **go-profinet v0.24.0** (from v0.23.0).
+- **Configurable submodules.** profinetctl builds the model with
+  go-profinet's `gsdml.Configuration` when `--plug-submodule` is given,
+  when a device access point's defaults need configurable submodules
+  (`ToModel` refuses it), and when a `--plug` names a module that has
+  them; otherwise it is `gsdml.ToModel`'s model, as before. Each
+  configurable submodule is in the subslots the file fixes it in, else
+  uses it in. The configuration plugs a module only in a slot the file
+  allows and does not replace a module the file fixes in a slot.
+- **`--gsdml`, `gsdml modules`, `submodules`, `inspect`, `check`**: a
+  device access point v0.21.0 refused with `unsupported_gsdml` for a
+  configurable submodule is its default configuration. A default that
+  needs a choice (two submodules used in one subslot) exits 3 with
+  `invalid_input` and names the subslot; `gsdml check` reports it as
+  unvalidated, rule `model`.
+- **`gsdml modules`**: a module with configurable submodules is among
+  the usable modules (its submodules and IO lengths those of its
+  defaults); `omitted_modules` now holds only the modules go-profinet
+  cannot place, with why.
+- **`--plug` of a module with configurable submodules** plugs it with its
+  defaults instead of exiting 3 with `unsupported_gsdml`. A slot the file
+  does not allow, or one with a module the file fixes, is `invalid_input`
+  (exit 3).
+
+### Breaking
+
+- `--plug-any-slot` with a configuration of configurable submodules exits
+  2 with `invalid_flag_combination`; it had no such configuration to
+  apply to before. `--plug-submodule` with `--model` does too.
+- `gsdml modules` JSON: modules with configurable submodules move from
+  `omitted_modules` to `modules`.
+- Exit codes and messages for files with configurable submodules change
+  as above: `unsupported_gsdml` becomes success, or `invalid_input` for a
+  choice the file does not allow or a default that needs one.
+
+The reading of the subslot attributes is go-profinet's, not checked
+against PI's specification or an engineering tool (its LIMITATIONS.md).
+
+---
+
 ## v0.21.0
 
 **Date:** 2026-11-24

@@ -275,15 +275,16 @@ func (r planResult) Partial() bool { return !r.Planned }
 
 func newGSDMLPlanCmd(a *app) *cobra.Command {
 	var dap string
-	var plugs, values []string
+	var plugs, plugSubs, values []string
 	var slots []uint
 	var defaults bool
 	c := &cobra.Command{
-		Use:   "plan FILE [--plug SLOT=IDENT]... [--param-value SLOT:SUBSLOT:INDEX:FIELD=VALUE]... [--param-defaults]",
+		Use:   "plan FILE [--plug SLOT=IDENT]... [--plug-submodule SLOT:SUBSLOT=SUBMODULE]... [--param-value SLOT:SUBSLOT:INDEX:FIELD=VALUE]... [--param-defaults]",
 		Short: "Show the parameter records an AR would write, from the GSDML file and chosen values; sends nothing",
 		Long: `Build the parameter plan of a device configuration with go-profinet's
 PlanParameters, and show it without sending anything: the parameter records an
-AR with the same --gsdml, --dap, --plug, --slot, --param-value and --param-defaults
+AR with the same --gsdml, --dap, --plug, --plug-submodule, --slot, --param-value
+and --param-defaults
 writes before PrmEnd, in the order it writes them, and the issues of the
 records.
 
@@ -305,15 +306,8 @@ after the planned ones, as given.`,
 		Args: cobra.ExactArgs(1),
 		RunE: func(c *cobra.Command, args []string) error {
 			return a.result(c, func(ctx context.Context) (any, error) {
-				m, doc, err := loadModelDoc(args[0], dap, "")
+				m, doc, err := buildModel(args[0], dap, "", modelChoices{plugs: plugs, subs: plugSubs})
 				if err != nil {
-					return nil, err
-				}
-				var omitted []omittedModule
-				if len(plugs) > 0 {
-					omitted = omittedModules(doc, dap)
-				}
-				if err := plug(m, plugs, slotRulesOf(doc, dap), omitted); err != nil {
 					return nil, err
 				}
 				if m, err = withSlots(m, slots); err != nil {
@@ -347,6 +341,7 @@ after the planned ones, as given.`,
 	}
 	f := c.Flags()
 	f.StringVar(&dap, "dap", "", "Device access point ID (default: the first)")
+	f.StringArrayVar(&plugSubs, "plug-submodule", nil, plugSubmoduleUsage)
 	f.StringArrayVar(&plugs, "plug", nil, "Plug the module with this ident number from the GSDML catalog: SLOT=IDENT (repeatable), in a slot the GSDML file allows it in")
 	f.UintSliceVar(&slots, "slot", nil, "Only these slots besides the DAP, as the AR commands' --slot (shared device); repeatable or comma-separated")
 	addPlanFlags(f, &values, &defaults)

@@ -35,6 +35,7 @@ type arOptions struct {
 	gsdml, dap      string
 	modelFile       string
 	plugs           []string
+	plugSubs        []string
 	plugAnySlot     bool
 	advanced        bool
 	sendClock       uint16
@@ -73,6 +74,7 @@ func addAROptions(c *cobra.Command, o *arOptions) {
 	f.StringVar(&o.dap, "dap", "", "Device access point ID in the GSDML file (default: the first)")
 	f.StringVar(&o.modelFile, "model", "", "Expected configuration as a go-profinet model in JSON (instead of --gsdml)")
 	f.StringArrayVar(&o.plugs, "plug", nil, "Plug the module with this ident number from the GSDML catalog: SLOT=IDENT (repeatable), in a slot the GSDML file allows it in")
+	f.StringArrayVar(&o.plugSubs, "plug-submodule", nil, plugSubmoduleUsage)
 	f.BoolVar(&o.plugAnySlot, "plug-any-slot", false, "Let --plug plug a module in a slot the GSDML file does not allow it in (PhysicalSlots, AllowedInSlots), to test how the device answers")
 	f.BoolVar(&o.advanced, "advanced", false, "Advanced startup with RT_CLASS_2 (instead of legacy startup with RT_CLASS_1)")
 	f.Uint16Var(&o.sendClock, "send-clock", 32, "SendClockFactor in units of 31.25 µs (32 = 1 ms)")
@@ -161,19 +163,8 @@ func (o *arOptions) parse() (*parsedAR, error) {
 	if err := o.checkNumbers(); err != nil {
 		return nil, err
 	}
-	m, doc, err := loadModelDoc(o.gsdml, o.dap, o.modelFile)
+	m, doc, err := buildModel(o.gsdml, o.dap, o.modelFile, modelChoices{plugs: o.plugs, subs: o.plugSubs, anySlot: o.plugAnySlot})
 	if err != nil {
-		return nil, err
-	}
-	var rules *slotRules
-	if doc != nil && !o.plugAnySlot {
-		rules = slotRulesOf(doc, o.dap)
-	}
-	var omitted []omittedModule
-	if len(o.plugs) > 0 {
-		omitted = omittedModules(doc, o.dap)
-	}
-	if err := plug(m, o.plugs, rules, omitted); err != nil {
 		return nil, err
 	}
 	if m, err = withSlots(m, o.slots); err != nil {

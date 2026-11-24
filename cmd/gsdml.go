@@ -68,6 +68,15 @@ func loadModelDoc(gsdmlFile, dap, modelFile string) (*model.Device, *gsdml.Docum
 			return nil, nil, err
 		}
 		m, err := gsdml.ToModel(doc, dap)
+		if errors.Is(err, profinet.ErrUnsupported) {
+			// A device access point that needs configurable submodules:
+			// its default configuration.
+			_, cm, cerr := configure(gsdmlFile, doc, dap, nil, nil)
+			if cerr != nil {
+				return nil, nil, cerr
+			}
+			return cm, doc, nil
+		}
 		if err != nil {
 			return nil, nil, gsdmlError(fmt.Sprintf("%s: %v", gsdmlFile, err), err)
 		}
@@ -213,7 +222,7 @@ func inspect(ctx context.Context, path string, doc *gsdml.Document, rep gsdml.Re
 				if err := interrupted(ctx); err != nil {
 					return inspectResult{}, err
 				}
-				if m, err := gsdml.ToModel(doc, d.ID); err != nil {
+				if m, err := defaultModel(doc, d.ID); err != nil {
 					v.Error = err.Error()
 				} else {
 					v.Name, v.MinDeviceInterval, v.Ports = m.Identity.TypeOfStation, m.Capabilities.MinDeviceInterval, m.Capabilities.Ports
@@ -293,14 +302,18 @@ type moduleView struct {
 	InputLen    int      `json:"input_length"`
 	OutputLen   int      `json:"output_length"`
 	Info        string   `json:"info,omitempty"`
+	// Configurable is the number of configurable submodules the module can
+	// choose (UseableSubmodules); Submodules and the lengths are those of
+	// its default configuration.
+	Configurable int `json:"configurable_submodules,omitempty"`
 }
 
 type modulesResult struct {
 	DAP     string       `json:"dap"`
 	Modules []moduleView `json:"modules"`
-	// Omitted are the modules the file lets the DAP use that are not in
-	// the model's catalog, with why: they need a configurable submodule,
-	// which go-profinet does not convert (--plug refuses them).
+	// Omitted are the modules the file lets the DAP use that --plug
+	// refuses, with why: go-profinet cannot place their configurable
+	// submodules.
 	Omitted []omittedModuleView `json:"omitted_modules,omitempty"`
 }
 
@@ -318,7 +331,11 @@ func (r modulesResult) MarshalTextOutput() (string, error) {
 		if len(m.Slots) > 0 {
 			slots = strings.Trim(fmt.Sprint(m.Slots), "[]")
 		}
-		fmt.Fprintf(&b, "0x%08X  %-32s slots %-8s %d submodule(s), %d in / %d out octets\n", m.IdentNumber, m.Name, slots, m.Submodules, m.InputLen, m.OutputLen)
+		conf := ""
+		if m.Configurable > 0 {
+			conf = fmt.Sprintf(", %d configurable", m.Configurable)
+		}
+		fmt.Fprintf(&b, "0x%08X  %-32s slots %-8s %d submodule(s)%s, %d in / %d out octets\n", m.IdentNumber, m.Name, slots, m.Submodules, conf, m.InputLen, m.OutputLen)
 	}
 	fmt.Fprintf(&b, "%d module(s) usable with DAP %s\n", len(r.Modules), r.DAP)
 	if len(r.Omitted) > 0 {
@@ -513,11 +530,30 @@ profinetctl, and this is not PI's GSDML checker.`,
 					return nil, err
 				}
 				r := modulesResult{DAP: orDash(dap), Modules: []moduleView{}}
+				configurable := map[uint32]int{}
 				for _, om := range omittedModules(doc, dap) {
 					r.Omitted = append(r.Omitted, omittedModuleView{ID: om.ID, IdentNumber: om.IdentNumber, Reason: om.Err.Error()})
 				}
+				if c, cm, cerr := configure(args[0], doc, dap, nil, nil); cerr == nil {
+					// The default configuration: its catalog has the
+					// modules with configurable submodules too, with their
+					// defaults; the modules it cannot place are omitted.
+					m, r.Omitted = cm, nil
+					seen := map[uint32]bool{}
+					for _, mt := range m.ModuleTypes() {
+						seen[mt.IdentNumber] = true
+					}
+					for _, mo := range c.Modules() {
+						id := mo.Module.IdentNumber
+						configurable[id] = max(configurable[id], len(mo.Submodules))
+						if !seen[id] {
+							seen[id] = true
+							r.Omitted = append(r.Omitted, omittedModuleView{ID: mo.ID, IdentNumber: id, Reason: optionError(mo)})
+						}
+					}
+				}
 				for _, mt := range m.ModuleTypes() {
-					v := moduleView{Name: mt.Name, IdentNumber: mt.IdentNumber, Submodules: len(mt.Submodules), Info: mt.Info}
+					v := moduleView{Name: mt.Name, IdentNumber: mt.IdentNumber, Submodules: len(mt.Submodules), Info: mt.Info, Configurable: configurable[mt.IdentNumber]}
 					for _, s := range mt.Submodules {
 						v.InputLen += int(s.InputLen)
 						v.OutputLen += int(s.OutputLen)
@@ -621,6 +657,30 @@ file goes to stdout; with a directory it gets its conventional name
 	generateCmd.Flags().StringVarP(&out, "output-file", "O", "", "Write to this file, or under the conventional name to this directory")
 	generateCmd.Flags().StringVar(&version, "pnio-version", "", "Declared PNIO_Version (default V2.35)")
 	generateCmd.Flags().BoolVar(&supervisor, "device-access", true, "Declare DeviceAccessSupported (supervisor AR)")
-	g.AddCommand(inspectCmd, validateCmd, newGSDMLCheckCmd(a), newGSDMLSchemaCmd(a), newGSDXCmd(a), modulesCmd, submodulesCmd, newGSDMLPlanCmd(a), generateCmd)
+	g.AddCommand(inspectCmd, validateCmd, newGSDMLCheckCmd(a), newGSDMLSchemaCmd(a), newGSDXCmd(a), modulesCmd, submodulesCmd, newGSDMLConfigCmd(a), newGSDMLPlanCmd(a), generateCmd)
 	return g
+}
+
+// optionError is why the default configuration leaves a module out of its
+// catalog: its own error, else that of its first configurable submodule
+// that has one, else two submodules used in one subslot by default (their
+// Defaults), which --plug-submodule decides.
+func optionError(mo gsdml.ModuleOption) string {
+	if mo.Error != "" {
+		return mo.Error
+	}
+	reason := "not in the catalog of the default configuration"
+	by := map[uint16]string{}
+	for _, o := range mo.Submodules {
+		if o.Error != "" {
+			return "configurable submodule " + o.ID + ": " + o.Error
+		}
+		for _, s := range o.Defaults {
+			if other, dup := by[s]; dup && other != o.ID {
+				reason = fmt.Sprintf("configurable submodules %s and %s are both used in subslot %d by default: --plug with --plug-submodule chooses one", other, o.ID, s)
+			}
+			by[s] = o.ID
+		}
+	}
+	return reason
 }

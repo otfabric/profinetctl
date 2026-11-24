@@ -91,7 +91,7 @@ type checkResult struct {
 const checkScope = ", go-profinet's semantic rules (IO data length, slots, record indexes, ident numbers, subslots, reduction ratios, parameter records and their TransferSequence) and the conversion of the first 64 device access points to a model; not PI's GSDML checker"
 
 // ruleModel is the rule of a device access point that does not convert to
-// a model (gsdml.ToModel), so that --gsdml with its ID fails.
+// a model (defaultModel), so that --gsdml with its ID and no choices fails.
 const ruleModel = "model"
 
 // pathID quotes an ID in an issue path as go-profinet's Check does: the
@@ -132,9 +132,11 @@ func modelIssues(ctx context.Context, doc *gsdml.Document) ([]gsdml.Issue, error
 		if err := interrupted(ctx); err != nil {
 			return nil, err
 		}
-		if _, err := gsdml.ToModel(doc, d.ID); err != nil {
+		if _, err := defaultModel(doc, d.ID); err != nil {
 			sev := gsdml.SeverityError
-			if errors.Is(err, profinet.ErrUnsupported) {
+			// What go-profinet does not support, or a configuration that
+			// needs a choice (--plug-submodule), is no fault of the file.
+			if errors.Is(err, profinet.ErrUnsupported) || errors.Is(err, profinet.ErrInvalidConfig) && !errors.Is(err, profinet.ErrMalformed) {
 				sev = gsdml.SeverityUnvalidated
 			}
 			out = append(out, gsdml.Issue{
