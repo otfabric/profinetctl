@@ -219,7 +219,7 @@ func newDeviceCmd(a *app) *cobra.Command {
 				}
 				defer s.Close()
 				r := deviceInfoResult{Device: viewOf(s.id), Modules: []slotView{}}
-				if e := readIM(ctx, s, 0, 1, 0); e.IM0 != nil {
+				if e := readIM(ctx, s, 0, 0, 1, 0); e.IM0 != nil {
 					r.IM0 = e.IM0
 				} else {
 					r.Errors = append(r.Errors, "I&M0: "+e.Error)

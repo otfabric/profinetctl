@@ -4,6 +4,7 @@ package cmd
 
 import (
 	"context"
+	"encoding/json"
 	"fmt"
 	"strings"
 	"testing"
@@ -207,5 +208,80 @@ func TestGSDMLSubmodulesAPI(t *testing.T) {
 	}
 	if out := n.ok("gsdml", "submodules", plain); strings.Contains(out, "API") {
 		t.Fatalf("API 0 text:\n%s", out)
+	}
+}
+
+// im read and diagnostics address a submodule of an API other than 0 with
+// --api; the device-wide diagnosis names the API of each entry, and output
+// of API 0 alone is shown as before.
+func TestIMDiagnosticsAPI(t *testing.T) {
+	t.Parallel()
+	n := newTestNet(t)
+	d := n.device("dev-a", "192.168.0.10", func(c *device.Config) { c.Model = mixedAPIModel() })
+
+	// go-profinet's device has I&M at the DAP only: the submodule of
+	// apiIOLink refuses I&M0 as an invalid index in its API and as an
+	// invalid area in API 0, so the API reached the device.
+	var r imResult
+	out, _, code := n.run("-i", "pn0", "im", "read", "-s", "dev-a", "--api", "0x4E01", "--slot", "4", "--subslot", "2", "--record", "0", "--format", "json")
+	if code != 7 {
+		t.Fatalf("im read API 0x4E01: %d\n%s", code, out)
+	}
+	if err := json.Unmarshal([]byte(out), &r); err != nil {
+		t.Fatal(err)
+	}
+	if r.API != apiIOLink || r.Slot != 4 || r.Subslot != 2 || len(r.Records) != 1 || !strings.Contains(r.Records[0].Error, "invalid index") {
+		t.Fatalf("im read API 0x4E01 %+v", r)
+	}
+	out, _, _ = n.run("-i", "pn0", "im", "read", "-s", "dev-a", "--slot", "4", "--subslot", "2", "--record", "0", "--format", "json")
+	if err := json.Unmarshal([]byte(out), &r); err != nil {
+		t.Fatal(err)
+	}
+	if r.API != 0 || len(r.Records) != 1 || !strings.Contains(r.Records[0].Error, "invalid area") {
+		t.Fatalf("im read API 0 %+v", r)
+	}
+	if out, _, _ := n.run("-i", "pn0", "im", "read", "-s", "dev-a", "--api", "0x4E01", "--slot", "4", "--subslot", "2", "--record", "0"); !strings.Contains(out, ") API 0x00004E01 slot 4 subslot 0x0002\n") {
+		t.Fatalf("im read text:\n%s", out)
+	}
+	if out := n.ok("-i", "pn0", "im", "read", "-s", "dev-a"); strings.Contains(out, "API") {
+		t.Fatalf("im read API 0 text:\n%s", out)
+	}
+
+	// The device's diagnosis with an entry in API 0 and one in apiIOLink.
+	ctx := context.Background()
+	addDiag(t, d, ctx, 1, 1, pnio.DiagnosisItem{ChannelNumber: 3, ChannelProperties: pnio.ChanDirInput, ErrorType: pnio.ChannelErrLineBreak})
+	addDiag(t, d, ctx, 4, 2, pnio.DiagnosisItem{ChannelNumber: 1, ChannelProperties: pnio.ChanDirInput, ErrorType: pnio.ChannelErrShortCircuit})
+	var dr diagnosticsResult
+	n.json(&dr, "-i", "pn0", "diagnostics", "-s", "dev-a")
+	if len(dr.Entries) != 2 || dr.Entries[0].API != 0 || dr.Entries[1].API != apiIOLink || dr.Entries[1].Slot != 4 || dr.Entries[1].Subslot != 2 {
+		t.Fatalf("diagnosis %+v", dr)
+	}
+	out = n.ok("-i", "pn0", "diagnostics", "-s", "dev-a")
+	if !strings.Contains(out, "\nAPI 0x00004E01 slot 4 subslot 0x0002 channel 0x0001 input: short circuit") || !strings.HasPrefix(out, "slot 1 subslot 0x0001") {
+		t.Fatalf("diagnosis text:\n%s", out)
+	}
+	table := n.ok("-i", "pn0", "diagnostics", "-s", "dev-a", "-o", "table")
+	if !strings.HasPrefix(table, "API") || !strings.Contains(table, "0x00004E01") || !strings.Contains(table, "0x00000000") {
+		t.Fatalf("diagnosis table:\n%s", table)
+	}
+	n.json(&dr, "-i", "pn0", "diagnostics", "-s", "dev-a", "--api", "0x4E01", "--slot", "4", "--subslot", "2")
+	if len(dr.Entries) != 1 || dr.Entries[0].API != apiIOLink || dr.Entries[0].Error != "short circuit" {
+		t.Fatalf("submodule diagnosis %+v", dr)
+	}
+	// The submodule in API 0: the device refuses it.
+	if _, _, code := n.run("-i", "pn0", "diagnostics", "-s", "dev-a", "--slot", "4", "--subslot", "2"); code == 0 {
+		t.Fatal("diagnosis of slot 4 subslot 2 in API 0 accepted")
+	}
+	// --api without a submodule: the device's diagnosis is every API's.
+	n.fails(2, "invalid_flag_combination", "-i", "pn0", "diagnostics", "-s", "dev-a", "--api", "0x4E01")
+
+	// A device of API 0 alone: no API in the text or table.
+	d0 := n.device("dev-b", "192.168.0.11")
+	addDiag(t, d0, ctx, 1, 1, pnio.DiagnosisItem{ChannelNumber: 3, ChannelProperties: pnio.ChanDirInput, ErrorType: pnio.ChannelErrLineBreak})
+	if out := n.ok("-i", "pn0", "diagnostics", "-s", "dev-b"); strings.Contains(out, "API") {
+		t.Fatalf("API 0 diagnosis text:\n%s", out)
+	}
+	if out := n.ok("-i", "pn0", "diagnostics", "-s", "dev-b", "-o", "table"); strings.Contains(out, "API") {
+		t.Fatalf("API 0 diagnosis table:\n%s", out)
 	}
 }

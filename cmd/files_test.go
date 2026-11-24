@@ -105,7 +105,7 @@ func TestIMRecord(t *testing.T) {
 			t.Fatalf("I&M%d accepted", n)
 		}
 	}
-	if e := readIM(t.Context(), nil, 0, 1, 5); e.Error == "" || e.Record != "I&M5" {
+	if e := readIM(t.Context(), nil, 0, 0, 1, 5); e.Error == "" || e.Record != "I&M5" {
 		t.Fatalf("readIM 5: %+v", e)
 	}
 }

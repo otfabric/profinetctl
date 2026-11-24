@@ -5,7 +5,7 @@
 | Code | Meaning |
 |------|---------|
 | 0 | Success |
-| 2 | Usage (`usage`): unknown command or flag, a missing required flag, `--param-value` or `--param-defaults` without `--gsdml`, a `--param` of a record the parameter plan writes, no device selected (`--station` or `--mac`), both selections, a missing `--confirm` for `reset` or one that names another device |
+| 2 | Usage (`usage`): unknown command or flag, a missing required flag, `--param-value` or `--param-defaults` without `--gsdml`, a `--param` of a record the parameter plan writes, no device selected (`--station` or `--mac`), both selections, a missing `--confirm` for `reset` or one that names another device, `diagnostics --api` without `--slot` or `--subslot` |
 | 3 | Invalid input (`invalid_input`): a flag value, environment variable, GSDML file or model that does not make sense, a `--param-value` the file does not allow (no such record or field, a field that is not Changeable, a value outside its AllowedValues or ValueItem, a field given twice) or a parameter plan an AR command cannot write, or a GSDML file with content go-profinet does not support (`unsupported_gsdml`) (a negative duration, a zero cycle factor, a send clock × reduction ratio above 65535, an address that is no host address, an input file above 16 MiB), an interface that does not exist. Nothing was sent |
 | 4 | Transport (`transport`): the interface cannot be opened, a socket cannot be bound or fails |
 | 5 | Timeout (`timeout`): the device did not answer a DCP request or an RPC call in time (`--timeout`), or an AR did not reach Running within `--connect-timeout` |

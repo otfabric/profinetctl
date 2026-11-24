@@ -23,6 +23,50 @@ ending with a `---` line and no `---` line inside a section
 
 ---
 
+## v0.20.0
+
+**Date:** unreleased
+**Previous release:** v0.19.0
+
+## Summary
+
+`im read` and `diagnostics` address a submodule of an API other than 0
+with `--api`, and the diagnosis of a device names the API of each entry
+of such a submodule. `device info` already showed the submodules of every
+API (v0.18.0); with this release the commands that read one submodule's
+records no longer assume API 0 either. Still built on go-profinet v0.22.0.
+
+## Changes
+
+### Added
+
+- **`im read --api N`**: reads the I&M records of the submodule at (API,
+  slot, subslot); default 0. JSON field `api` (docs/json-output.md); the
+  text names the API when it is not 0 (`... API 0x00004E01 slot 4 subslot
+  0x0002`).
+- **`diagnostics --api N`** with `--slot`/`--subslot`: the diagnosis of
+  that submodule (go-profinet's `ReadSubmoduleDiagnosis`, index 0x800C in
+  the API). `--api` without `--slot` or `--subslot` is a usage error
+  (exit code 2, `invalid_flag_combination`): the diagnosis of the device
+  (0xF80C) holds every API's entries.
+
+### Changed
+
+- **`diagnostics`**: the text names the API of an entry of an API other
+  than 0 (`API 0x00004E01 slot 4 subslot 0x0002 channel ...`), and the
+  table gets an `API` column when there is such an entry. The JSON field
+  `api` of each entry is unchanged.
+
+### Breaking
+
+Consumer assessment: devices with submodules in API 0 alone give the same
+output, exit codes and wire traffic as with v0.19.0, apart from the new
+`api` field (0) of `im read`. For a device with submodules of another
+API, scripts parsing the text or table of `diagnostics` see the API
+prefix and the leading `API` column.
+
+---
+
 ## v0.19.0
 
 **Date:** 2026-11-23
