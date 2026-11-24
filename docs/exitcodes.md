@@ -22,7 +22,7 @@
 | `kind` | `code` values |
 |--------|---------------|
 | `usage` | `invalid_input`, `invalid_flag_combination`, `confirmation_required` |
-| `invalid_input` | `invalid_input`, `invalid_format`, `invalid_flag_combination`, `invalid_gsdml`, `unsupported_gsdml` (a document type declaration with an internal subset, a file naming no schema version go-profinet has, for `gsdml schema validate` and `gsdml schema dump` without `--version`, a float value JSON cannot represent (INF, -INF or NaN) for `gsdml schema dump`, a Ref DefaultValue of a DataType whose encoding go-profinet does not know, a device access point or plugged module that needs a configurable submodule (`UseableSubmodules` with `FixedInSubslots` or `UsedInSubslots`), a `--plug` of a module the catalog leaves out for one: the file may be valid), `invalid_model`, `input_file_open_failed`, `output_file_create_failed`, `interface_open_failed` (no such interface) |
+| `invalid_input` | `invalid_input`, `invalid_format`, `invalid_flag_combination`, `invalid_gsdml`, `unsupported_gsdml` (a document type declaration with an internal subset, a file naming no schema version go-profinet has, for `gsdml schema validate` and `gsdml schema dump` without `--version`, a float value JSON cannot represent (INF, -INF or NaN) for `gsdml schema dump`, a Ref DefaultValue of a DataType whose encoding go-profinet does not know, a configurable submodule go-profinet cannot place, such as a `PortSubmoduleItem` in a module: the file may be valid), `invalid_model`, `input_file_open_failed`, `output_file_create_failed`, `interface_open_failed` (no such interface) |
 | `transport` | `interface_open_failed`, `socket_failed` |
 | `timeout` | `request_timeout`, `connect_failed` |
 | `refused` | `pnio_error` (the message names the status: ErrorCode, ErrorDecode, ErrorCode1, ErrorCode2), `dcp_block_error`, `connect_failed`, `duplicate_station_name`, `invalid_input` (no IP address) |
@@ -33,6 +33,8 @@
 | `interrupted` | `context_canceled` |
 | `output` | `table_render_failed`, `output_write_failed`, `output_file_write_failed` |
 | `internal` | `internal_unexpected` |
+
+Configurations (`--plug`, `--plug-submodule`, `gsdml config`): a `--plug` or `--plug-submodule` the GSDML file does not allow (a slot or subslot outside its lists, a module or submodule it fixes there, an unknown ID or ident number) and a default configuration that needs a choice (two submodules used in one subslot by default) are `invalid_input` (exit 3); `--plug-any-slot` with a configuration of configurable submodules and `--plug-submodule` with `--model` are `invalid_flag_combination` (exit 2).
 
 **Partial exit:** only after a success payload was written. A failure to open the interface, to resolve the device or to write the result is fatal and uses the codes above, never `7`. `im write` is partial only when a record fails after others were written: when the first record fails, nothing was written and its error is fatal; an interruption stays `130`.
 
