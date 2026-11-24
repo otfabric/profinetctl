@@ -38,7 +38,7 @@ This repository follows **otfabric/engineering policy 1.6**, profile **cli** (`.
 | 32-bit relevant code (linux/arm/v7 is a release target) | `make cross` |
 | RELEASE.md | `make release-notes-check` |
 | documented examples | `make examples-doc` (Docker, p-net) |
-| behaviour against p-net | `make pnet-smoke` (Docker and python3; needs the images of the sibling repository profinet-interop) |
+| behaviour against p-net | `make pnet-smoke` (Docker and python3; needs the p-net image of the sibling repository profinet-interop, `make image-pnet` there; CI builds it at the pin in ci.yml) |
 
 ## Definition of Done
 
