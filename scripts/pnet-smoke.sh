@@ -2,7 +2,7 @@
 # SPDX-License-Identifier: MIT
 #
 # Runs profinetctl against rt-labs p-net (the profinet-interop-pnet image of
-# otfabric/profinet-interop, built with its "make images") on a Docker bridge
+# otfabric/profinet-interop, built with its "make image-pnet") on a Docker bridge
 # network, command by command, and fails on the first unexpected exit code or
 # JSON result. Needs Docker and python3 (for the JSON checks); builds
 # profinetctl for Linux on the host's

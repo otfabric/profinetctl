@@ -72,6 +72,34 @@ jobs:
         env:
           PROFINETCTL_E2E_INTERFACE: pne2e0
 
+  # make pnet-smoke: the built binary against rt-labs p-net (and go-profinet's
+  # interop device, otfnode) on a Docker bridge network. The p-net image is
+  # built here from profinet-interop's source at PNET_SMOKE_INTEROP_REF (its
+  # GPL images are not published); keep the pin on a released version.
+  pnet-smoke:
+    name: Smoke test against p-net (Docker)
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    env:
+      PNET_SMOKE_INTEROP_REF: v0.15.0
+      GOWORK: "off"
+    steps:
+      - uses: actions/checkout@v7
+      - uses: actions/setup-go@v7
+        with:
+          go-version-file: go.mod
+      - name: Check out profinet-interop
+        uses: actions/checkout@v7
+        with:
+          repository: otfabric/profinet-interop
+          ref: ${{ env.PNET_SMOKE_INTEROP_REF }}
+          path: profinet-interop
+      - name: Build the p-net image
+        # Once more on failure: a Debian mirror mid-sync fails apt-get with
+        # a hash mismatch now and then.
+        run: make -C profinet-interop image-pnet || { sleep 30; make -C profinet-interop image-pnet; }
+      - run: make pnet-smoke
+
   # The shared workflow builds for 64-bit only; linux/arm/v7 is a release target, where int
   # has 32 bits.
   cross:
