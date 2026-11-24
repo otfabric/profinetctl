@@ -23,6 +23,51 @@ ending with a `---` line and no `---` line inside a section
 
 ---
 
+## v0.21.0
+
+**Date:** 2026-11-24
+**Previous release:** v0.20.1
+
+## Summary
+
+Built on go-profinet v0.23.0, whose `gsdml.ToModel` refuses a device
+access point that needs configurable submodules (`UseableSubmodules`),
+which it does not convert, and leaves a catalog module that needs one out
+of the catalog. `gsdml modules` lists those modules with why, and `--plug`
+of one says why it cannot be plugged instead of reporting an unknown
+ident.
+
+## Changes
+
+### Changed
+
+- **go-profinet v0.23.0** (from v0.22.0). `--gsdml` and the `gsdml`
+  commands that build a model (`modules`, `submodules`, `plan`, `connect`
+  and the other AR commands) fail with `unsupported_gsdml` (exit 3) for a
+  device access point whose own submodules or plugged modules include a
+  configurable submodule with `FixedInSubslots` or `UsedInSubslots`. Such
+  a file was accepted before and gave a model without those submodules.
+  `gsdml inspect` reports the error per DAP.
+- **`--plug SLOT=IDENT`** (`connect`, the AR commands, `gsdml plan`): a
+  module of the file that the catalog leaves out fails with
+  `unsupported_gsdml` (exit 3), naming the module and go-profinet's
+  reason, with or without `--plug-any-slot`. An ident the file does not
+  have is still `invalid_input` (exit 3).
+
+### Added
+
+- **`gsdml modules`**: `omitted_modules` in JSON (`id`, `ident_number`,
+  `reason`), the modules after the usable ones in text, and rows with
+  `omitted` in the table.
+
+### Breaking
+
+A GSDML file profinetctl took before can now exit 3 with
+`unsupported_gsdml` (go-profinet's RELEASE.md, v0.23.0, gives the counts
+on its local corpus). Configurable submodules cannot be selected yet.
+
+---
+
 ## v0.20.1
 
 **Date:** unreleased
