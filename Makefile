@@ -175,7 +175,7 @@ release-all: build-all ## Package the build binaries into tar.gz (Unix) or zip (
 examples-doc: ## Regenerate docs/EXAMPLES.md: real output against p-net and go-profinet devices in Docker
 	@scripts/examples.sh
 
-pnet-smoke: ## Run profinetctl against p-net in Docker (needs profinet-interop's p-net image: make image-pnet there)
+pnet-smoke: ## Run profinetctl against p-net in Docker (needs profinet-interop-pnet:dev, profinet-interop's image-pnet target)
 	@scripts/pnet-smoke.sh
 
 # E2E_SETCAP=1 gives the built binary CAP_NET_RAW and CAP_NET_ADMIN (Linux, with
